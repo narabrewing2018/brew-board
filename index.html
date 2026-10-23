@@ -179,6 +179,7 @@ details.set summary{cursor:pointer;font-family:var(--f-display);font-weight:700}
 .install{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:12px 0 0;font-size:13px;color:var(--muted)}
 .install b{color:var(--ink)}
 .install .sp{margin-left:auto;display:flex;gap:8px}
+.update{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;display:flex;align-items:center;justify-content:center;gap:10px;width:100%;border:0;background:var(--accent);color:var(--accent-ink);font:inherit;font-weight:700;font-size:14px;padding:12px 16px;cursor:pointer}
 </style>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=IBM+Plex+Mono:wght@500&family=Zen+Kaku+Gothic+New:wght@700;900&display=swap">
 
@@ -193,6 +194,7 @@ details.set summary{cursor:pointer;font-family:var(--f-display);font-weight:700}
     <button class="btn primary" id="lockBtn" type="submit">開く</button>
   </form>
 </div>
+<button class="update" id="updateBar" type="button" hidden>新しいバージョンがあります（タップで更新）</button>
 <div class="wrap">
   <div class="install" id="installBar" hidden><span id="installText"></span><span class="sp"><button class="btn primary" id="installBtn" hidden>インストール</button><button class="btn" id="installClose">閉じる</button></span></div>
   <header class="top">
@@ -597,6 +599,18 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden){const t=t
   btn.onclick=async()=>{if(!deferred)return;deferred.prompt();try{await deferred.userChoice;}catch(e){}deferred=null;bar.hidden=true;};
   window.addEventListener('appinstalled',()=>{bar.hidden=true;});
 })();
+/* ---------- app: new-version notice ---------- */
+const APP_VERSION='20261024-0656';
+let updateShown=false;
+async function checkUpdate(){if(updateShown||!navigator.onLine)return;
+  try{const r=await fetch('version.json?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const j=await r.json();
+    if(j&&j.v&&j.v!==APP_VERSION){updateShown=true;$('#updateBar').hidden=false;}}catch(e){}}
+$('#updateBar').onclick=async()=>{$('#updateBar').textContent='更新中…';
+  try{const reg=await navigator.serviceWorker?.getRegistration();if(reg)await reg.update();}catch(e){}
+  location.reload();};
+setInterval(checkUpdate,5*60*1000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkUpdate();});
+setTimeout(checkUpdate,5000);
 if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});}
 S.key=getKey();
 render();if(S.key)refresh();else showLock();
