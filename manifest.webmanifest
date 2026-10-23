@@ -1,0 +1,17 @@
+{
+  "name": "醸造ボード（奈良醸造）",
+  "short_name": "醸造ボード",
+  "description": "奈良醸造のタンク状況と今日のタスク",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#eceff0",
+  "theme_color": "#eceff0",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

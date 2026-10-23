@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>醸造ボード</title>
+<meta name="description" content="奈良醸造のタンク状況と今日のタスク">
+<meta name="theme-color" content="#eceff0">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/favicon-64.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="醸造ボード">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+body{margin:0}img{max-width:100%}[hidden]{display:none!important}
+
+/* Layout: brewery-floor board — tank cards with a fill gauge (left), today's checklist (right, sticky on wide screens), 15-day tank timeline below, settings folded at the bottom. */
+:root{
+  --bg:#eceff0; --surface:#fafbfb; --sunk:#e3e7e8; --ink:#1b2023; --muted:#5a656a; --line:#d2d8da;
+  --accent:#a8600e; --accent-ink:#ffffff;
+  --ferment:#b8730f; --bbt:#1d7471; --empty:#97a1a5; --today:#c2410c; --ok:#2e7a4c;
+  --h0:#b06a16; --h1:#1f7a78; --h2:#7a52a3; --h3:#2f6cb0; --h4:#a63e4e; --h5:#587a1e; --h6:#97592b; --h7:#3e6d8c;
+  --f-display:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+  --f-body:"BIZ UDPGothic","Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111416; --surface:#1a1e21; --sunk:#14181a; --ink:#e5e9ea; --muted:#97a2a6; --line:#2b3236;
+  --accent:#e29b3c; --accent-ink:#1a1206;
+  --ferment:#e3a145; --bbt:#4db1ab; --empty:#69737a; --today:#f37d4d; --ok:#5cbf85;
+  --h0:#e0a04a; --h1:#4fb3ae; --h2:#ab8ad6; --h3:#6fa2e0; --h4:#e07a8a; --h5:#9cc25a; --h6:#d29466; --h7:#79a9c9;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111416; --surface:#1a1e21; --sunk:#14181a; --ink:#e5e9ea; --muted:#97a2a6; --line:#2b3236;
+  --accent:#e29b3c; --accent-ink:#1a1206;
+  --ferment:#e3a145; --bbt:#4db1ab; --empty:#69737a; --today:#f37d4d; --ok:#5cbf85;
+  --h0:#e0a04a; --h1:#4fb3ae; --h2:#ab8ad6; --h3:#6fa2e0; --h4:#e07a8a; --h5:#9cc25a; --h6:#d29466; --h7:#79a9c9;
+  color-scheme:dark}
+
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.55;padding-inline:16px;padding-block:0 48px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1320px;margin:0 auto}
+
+/* top bar */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding-block:14px 12px;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:baseline;gap:10px;margin-right:auto}
+.brand h1{font-family:var(--f-display);font-weight:900;font-size:22px;letter-spacing:.02em;margin:0}
+.brand small{color:var(--muted);font-size:12px;letter-spacing:.08em}
+.datenav{display:flex;align-items:center;gap:6px}
+.datenav .d{font-family:var(--f-display);font-weight:700;font-size:16px;min-width:9.5em;text-align:center}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:6px 11px;cursor:pointer;line-height:1.2}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:4px 10px;background:var(--surface)}
+.pill i{width:7px;height:7px;border-radius:50%;background:var(--empty);display:inline-block}
+.pill[data-s="live"] i{background:var(--ok)} .pill[data-s="cache"] i{background:var(--ferment)} .pill[data-s="error"] i{background:var(--today)}
+
+/* board */
+.board{display:grid;gap:24px;margin-top:20px}
+@media (min-width:1080px){.board{grid-template-columns:minmax(0,1fr) 380px;align-items:start}.tasks{position:sticky;top:calc(env(safe-area-inset-top,0px) + 76px)}}
+.sec-h{display:flex;align-items:baseline;gap:10px;margin:0 0 12px}
+.sec-h h2{font-family:var(--f-display);font-weight:700;font-size:17px;margin:0;text-wrap:balance}
+.sec-h .aux{color:var(--muted);font-size:12px}
+.notice{border:1px dashed var(--line);border-radius:var(--r);padding:14px 16px;color:var(--muted);background:var(--surface)}
+.notice b{color:var(--ink)}
+
+/* tank cards */
+.tank-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+.tank{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 40px 12px 14px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.tank[data-state="today"]{border-color:var(--today)}
+.t-head{display:flex;align-items:center;gap:8px}
+.t-id{font-family:var(--f-mono);font-weight:500;font-size:13px;letter-spacing:.06em;color:var(--muted)}
+.chip{font-size:11.5px;font-weight:700;border-radius:999px;padding:2px 8px;white-space:nowrap;background:var(--sunk);color:var(--muted)}
+.tank[data-state="ferment"] .chip{background:color-mix(in oklab,var(--ferment) 18%,transparent);color:var(--ferment)}
+.tank[data-state="bbt"] .chip{background:color-mix(in oklab,var(--bbt) 18%,transparent);color:var(--bbt)}
+.tank[data-state="today"] .chip{background:var(--today);color:var(--accent-ink)}
+.beer{font-family:var(--f-display);font-weight:900;font-size:19px;line-height:1.25;overflow-wrap:anywhere}
+.beer.dim{color:var(--empty);font-weight:700}
+.sub{font-size:12px;color:var(--muted)}
+.next{list-style:none;margin:2px 0 0;padding:0;display:grid;gap:2px;font-size:12.5px}
+.next li{display:flex;justify-content:space-between;gap:8px}
+.next li span:last-child{color:var(--muted);white-space:nowrap}
+.next li.soon span:last-child{color:var(--today);font-weight:700}
+.stage{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-top:4px}
+.stage select{flex:1;min-width:0;border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:3px 6px;font-size:12.5px}
+.dh{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;margin-top:4px;font-size:12px}
+.dh label{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:6px;padding:3px 7px;cursor:pointer;background:var(--bg)}
+.dh label.on{border-color:var(--ok);color:var(--ok);font-weight:700;background:color-mix(in oklab,var(--ok) 10%,var(--surface))}
+.dh input{margin:0;width:14px;height:14px;accent-color:var(--ok)}
+.dh .mono{font-size:11px}
+.dh.na span{color:var(--muted)}
+.dh select{border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:3px 6px;font-size:12px}
+.dh label.late{border-color:var(--today);color:var(--today);font-weight:700}
+.dhc{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:6px;padding:3px 7px;background:var(--bg)}
+.dhc.on{border-color:var(--ok);color:var(--ok);font-weight:700;background:color-mix(in oklab,var(--ok) 10%,var(--surface))}
+.dhc.late{border-color:var(--today);color:var(--today);font-weight:700}
+.dh .dhm{color:var(--muted);font-size:11px}
+.al-mark{width:17px;height:17px;margin-top:2px;border-radius:50%;background:var(--today);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center}
+.tank.alert{border-color:var(--today);box-shadow:0 0 0 1px var(--today) inset}
+.alert-line{font-size:12px;font-weight:700;color:var(--today)}
+/* fill gauge: how far through its time in this tank the batch is */
+.gauge{position:absolute;right:12px;top:14px;bottom:14px;width:12px;border-radius:6px;background:var(--sunk);overflow:hidden;border:1px solid var(--line)}
+.gauge i{position:absolute;left:0;right:0;bottom:0;background:var(--empty)}
+.tank[data-state="ferment"] .gauge i{background:var(--ferment)}
+.tank[data-state="bbt"] .gauge i{background:var(--bbt)}
+.tank[data-state="today"] .gauge i{background:var(--today)}
+
+/* tasks */
+.tasks{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.grp{margin-top:14px}
+.grp:first-of-type{margin-top:4px}
+.grp h3{font-size:11.5px;letter-spacing:.12em;color:var(--muted);margin:0 0 6px;font-weight:700;display:flex;justify-content:space-between}
+.tl{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.task{display:grid;grid-template-columns:22px minmax(0,1fr) auto;align-items:start;gap:8px;padding:6px 4px;border-radius:6px}
+.task:hover{background:var(--bg)}
+.task input{width:17px;height:17px;margin:2px 0 0;accent-color:var(--accent)}
+.task label{cursor:pointer;overflow-wrap:anywhere}
+.task.done label{color:var(--muted);text-decoration:line-through}
+.task .meta{font-size:11.5px;color:var(--muted);white-space:nowrap;display:flex;gap:6px;align-items:center}
+.tag{font-family:var(--f-mono);font-size:11px;border:1px solid var(--line);border-radius:4px;padding:0 4px}
+.late{color:var(--today);font-weight:700}
+.x{border:0;background:none;color:var(--muted);cursor:pointer;padding:0 2px;font-size:13px}
+.x.arm{color:var(--today);font-weight:700}
+.empty-line{color:var(--muted);font-size:12.5px;padding:4px}
+.addform{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.addform input,.addform select,.set input,.set select{border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:6px 8px;min-width:0;width:100%}
+.addform .full{grid-column:1/-1}
+.addform label.chk{grid-column:1/-1;display:flex;align-items:center;gap:6px;font-size:12px}
+.addform label.chk input{width:17px;height:17px;flex:none;margin:0;accent-color:var(--accent)}
+.task.evt{grid-template-columns:22px minmax(0,1fr)}
+.evm{width:10px;height:10px;border-radius:50%;background:var(--accent);margin:6px 0 0 4px}
+.addform label{font-size:11.5px;color:var(--muted);display:grid;gap:3px}
+.agenda{margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+.ag-day{display:grid;grid-template-columns:72px minmax(0,1fr);gap:8px;padding:5px 0;border-bottom:1px dotted var(--line);font-size:12.5px}
+.ag-day:last-child{border-bottom:0}
+.ag-day .dd{font-family:var(--f-mono);color:var(--muted)}
+.ag-day ul{list-style:none;margin:0;padding:0;display:grid;gap:1px}
+
+/* timeline */
+.timeline-sec{margin-top:28px}
+.tl-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+.tlg{display:grid;grid-template-columns:64px repeat(15,minmax(44px,1fr));min-width:740px;font-size:12px}
+.tlg .hd{font-family:var(--f-mono);text-align:center;padding:6px 0;color:var(--muted);border-bottom:1px solid var(--line);font-size:11px;line-height:1.3}
+.tlg .hd.we{color:var(--today)}
+.tlg .hd.now{background:var(--accent);color:var(--accent-ink);font-weight:700}
+.tlg .rl{font-family:var(--f-mono);padding:0 8px;display:flex;align-items:center;border-bottom:1px solid var(--line);color:var(--muted);font-size:12px}
+.tlrow{grid-column:2/-1;display:grid;grid-template-columns:repeat(15,minmax(44px,1fr));grid-template-rows:44px;border-bottom:1px solid var(--line);position:relative}
+.tlrow .nowcol{grid-row:1;background:color-mix(in oklab,var(--accent) 10%,transparent);border-inline:1px solid color-mix(in oklab,var(--accent) 40%,transparent)}
+.blk{grid-row:1;margin:6px 1px;border-radius:5px;padding:3px 6px;font-size:11.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:1;align-self:stretch}
+.mk{grid-row:1;align-self:end;justify-self:center;z-index:2;margin-bottom:3px;font-size:10px;font-weight:700;line-height:1;padding:2px 3px;border-radius:3px;background:var(--ink);color:var(--surface)}
+.mk.acid{background:var(--today)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;font-size:11.5px;color:var(--muted)}
+
+/* settings */
+.settings{margin-top:28px;display:grid;gap:12px}
+details.set{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 16px}
+details.set summary{cursor:pointer;font-family:var(--f-display);font-weight:700}
+.set p{color:var(--muted);font-size:12.5px;margin:8px 0}
+.srow{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px 0;border-bottom:1px dotted var(--line)}
+@media (max-width:560px){.srow{grid-template-columns:1fr 1fr}.srow .grow{grid-column:1/-1}}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--surface);padding:9px 16px;border-radius:8px;font-size:13px;z-index:20;max-width:calc(100% - 32px)}
+@media (prefers-reduced-motion:no-preference){.tank,.task{transition:background-color .15s,border-color .15s}}
+
+/* app: lock screen (合言葉) + install hint */
+.lock{position:fixed;inset:0;z-index:50;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px 16px calc(24px + env(safe-area-inset-bottom,0px))}
+.lock form{width:100%;max-width:340px;display:flex;flex-direction:column;gap:14px}
+.lock img{width:72px;height:72px;border-radius:16px}
+.lock h2{font-family:var(--f-display);font-weight:900;font-size:24px;margin:0}
+.lock p{margin:0;color:var(--muted);font-size:14px;line-height:1.6}
+.lock input{font:inherit;font-size:18px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)}
+.lock .err{color:var(--today);font-weight:700}
+.lock .btn{font-size:16px;padding:12px}
+.install{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:12px 0 0;font-size:13px;color:var(--muted)}
+.install b{color:var(--ink)}
+.install .sp{margin-left:auto;display:flex;gap:8px}
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=IBM+Plex+Mono:wght@500&family=Zen+Kaku+Gothic+New:wght@700;900&display=swap">
+
+</head><body>
+<div class="lock" id="lock" hidden>
+  <form id="lockForm" autocomplete="off">
+    <img src="icons/icon-192.png" alt="">
+    <h2>醸造ボード</h2>
+    <p>合言葉を入力してください。この端末では次回から入力不要です。</p>
+    <input id="lockInput" type="password" inputmode="text" autocomplete="current-password" aria-label="合言葉" required>
+    <p class="err" id="lockErr" hidden>合言葉が違います</p>
+    <button class="btn primary" id="lockBtn" type="submit">開く</button>
+  </form>
+</div>
+<div class="wrap">
+  <div class="install" id="installBar" hidden><span id="installText"></span><span class="sp"><button class="btn primary" id="installBtn" hidden>インストール</button><button class="btn" id="installClose">閉じる</button></span></div>
+  <header class="top">
+    <div class="brand"><h1>醸造ボード</h1><small>NARA BREWING</small></div>
+    <div class="datenav">
+      <button class="btn" id="prevDay" aria-label="前の日">◀</button>
+      <span class="d" id="dateLabel">—</span>
+      <button class="btn" id="nextDay" aria-label="次の日">▶</button>
+      <button class="btn" id="todayBtn">今日</button>
+    </div>
+    <span class="pill" id="syncPill" data-s="loading"><i></i><span id="syncText">タンクスケジュールを読み込み中</span></span>
+    <button class="btn" id="refreshBtn" title="Google スプレッドシートから再読み込み">再読込</button>
+  </header>
+
+  <div class="board">
+    <section class="tanks-sec" aria-labelledby="tanksH">
+      <div class="sec-h"><h2 id="tanksH">タンク</h2><span class="aux" id="tankSummary"></span></div>
+      <div class="tank-grid" id="tankGrid"><div class="notice">タンクスケジュール（Google スプレッドシート「タンクスケジュール」シート）を読み込むと、FV・BBT ごとの銘柄・仕込日・次の作業がここに並びます。</div></div>
+    </section>
+
+    <aside class="tasks" aria-labelledby="tasksH">
+      <div class="sec-h"><h2 id="tasksH">今日のタスク</h2><span class="aux" id="taskCount"></span></div>
+      <div id="taskBody"><div class="empty-line">読み込み中…</div></div>
+      <form class="addform" id="addForm" autocomplete="off">
+        <label class="full">タスクを追加<input id="newTitle" placeholder="例：モルト入荷の検品" required maxlength="120"></label>
+        <label>期限<input id="newDue" type="date"></label>
+        <label>担当<input id="newWho" placeholder="任意" maxlength="20"></label>
+        <label>タンク<select id="newTank"><option value="">なし</option></select></label>
+        <label class="chk"><input type="checkbox" id="newIsEvent">予定として登録（期限の日だけ表示・チェック不要）</label>
+        <div style="display:flex;align-items:end"><button class="btn primary" id="addBtn" type="submit" style="width:100%">追加</button></div>
+      </form>
+      <div class="agenda">
+        <div class="grp" style="margin-top:0"><h3><span>この先7日間</span></h3></div>
+        <div id="agenda"></div>
+      </div>
+    </aside>
+  </div>
+
+  <section class="timeline-sec" aria-labelledby="tlH">
+    <div class="sec-h"><h2 id="tlH">タンクの予定（15日間）</h2><span class="aux">ブロック＝タンク内の銘柄、記号＝その日の作業</span></div>
+    <div class="tl-scroll"><div class="tlg" id="timeline"></div></div>
+    <div class="legend"><span>仕＝仕込</span><span>移・受＝移送（FV→BBT）</span><span>缶＝缶詰</span><span>樽＝樽詰</span><span>瓶＝瓶詰</span><span>赤＝酸洗浄あり</span></div>
+  </section>
+
+  <section class="settings">
+    <details class="set" id="routineSet">
+      <summary>定例タスクの設定</summary>
+      <p>毎日・平日・毎週・毎月・N日ごとのタスク。該当日の「定例」欄に自動で並びます。毎月で 31 を指定すると月末日。N日ごとは前回チェックした日から数えて、N日たつと表示されます。日付指定はその日だけ「予定」欄に表示されます（チェック不要）。</p>
+      <div id="routineList"></div>
+      <button class="btn" id="addRoutine" style="margin-top:10px">定例タスクを追加</button>
+    </details>
+    <details class="set" id="ruleSet">
+      <summary>タンク連動ルール</summary>
+      <p>スケジュール上の作業や仕込日から自動でタスクを作ります。「作業の当日」は移送・缶詰・樽詰などの日に（移送は FV 側に）、「作業の N 日後」は選んだ作業の日から数えた日に表示されます（前日は -1、2日前は -2。作業より前の日が土日祝なら前の平日に繰り上げ）。</p>
+      <div id="ruleList"></div>
+      <button class="btn" id="addRule" style="margin-top:10px">ルールを追加</button>
+    </details>
+  </section>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const SID='1RBpaU9VOMC1XIyMpvJvNzekw4TrfuI4wo8oOvmlq8Xk';
+const RANGE='タンクスケジュール!A1:ZZ40';
+const SERVER='Google Sheets';
+const DAY=864e5, WD='日月火水木金土';
+const EV_TYPES=['仕込','移動','受入','缶詰','樽詰','瓶詰'];
+const EV_SHORT={'仕込':'仕','移動':'移','受入':'受','缶詰':'缶','樽詰':'樽','瓶詰':'瓶'};
+const FILLS=['缶詰','樽詰','瓶詰'];
+const STAGES=[['発酵中','発酵中'],['酵母抜き','酵母抜き'],['熟成','熟成（酵母抜き完了）'],['CO2 POP','CO2 POP'],['ホップ抜き','ホップ抜き（発酵後DHあり）'],['カーボネーション未完了','カーボネーション未完了'],['充填待ち','充填待ち']];
+
+const $=s=>document.querySelector(s);
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function h32(s){let h=0x811c9dc5;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,0x01000193);}return (h>>>0).toString(36);}
+function isoToDn(s){const [y,m,d]=s.split('-').map(Number);return Date.UTC(y,m-1,d)/DAY;}
+function dnToIso(n){return new Date(n*DAY).toISOString().slice(0,10);}
+function parts(n){const d=new Date(n*DAY);return {y:d.getUTCFullYear(),m:d.getUTCMonth()+1,d:d.getUTCDate(),w:d.getUTCDay()};}
+function md(n){const p=parts(n);return p.m+'/'+p.d;}
+function mdw(n){const p=parts(n);return `${p.m}/${p.d}(${WD[p.w]})`;}
+function todayISO(){try{return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());}catch(e){return new Date(Date.now()+9*3600e3).toISOString().slice(0,10);}}
+function rel(n){return n===0?'今日':n===1?'明日':n>0?`${n}日後`:`${-n}日前`;}
+function hm(ms){const d=new Date(ms);try{return new Intl.DateTimeFormat('ja-JP',{timeZone:'Asia/Tokyo',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}).format(d);}catch(e){return d.toLocaleString();}}
+
+const S={today:todayISO(),view:todayISO(),values:null,src:null,syncedAt:null,sheetErr:null,sched:null,
+  db:null,user:null,canWrite:null,dbState:'loading',tasks:[],routines:[],rules:[],stages:{},batches:{},done:{},
+  cacheJson:null,cacheLoaded:false,pendingCache:null,doneMin:null,unDone:null,mcp:null};
+
+/* ---------- schedule parsing ---------- */
+const cs=v=>v==null?'':String(v).trim();
+function parseEv(raw){const s=cs(raw);if(!s)return null;if(/^\d+(\.\d+)?$/.test(s))return {num:+s};
+  const first=s.split(/\n/)[0].trim();const base=first.replace(/[（(].*$/,'').trim();
+  const type=EV_TYPES.find(t=>base.startsWith(t))||null;return {type,label:type||base||first,acid:/酸/.test(s)};}
+function parseSchedule(values,todayDn){
+  if(!Array.isArray(values)||values.length<4)return null;
+  const R1=values[0]||[],R2=values[1]||[];
+  const ncol=Math.max(0,...values.map(r=>Array.isArray(r)?r.length:0));
+  const cols=[];let curM=null;
+  for(let c=1;c<ncol;c++){const mv=cs(R1[c]);if(/^\d{1,2}$/.test(mv))curM=+mv;const dv=cs(R2[c]);if(curM==null||!/^\d{1,2}$/.test(dv))continue;cols.push({c,m:curM,d:+dv});}
+  if(!cols.length)return null;
+  const build=y0=>{let y=y0,pm=cols[0].m;const o={};for(const k of cols){if(k.m<pm)y++;pm=k.m;o[k.c]=Date.UTC(y,k.m-1,k.d)/DAY;}return o;};
+  const ty=parts(todayDn).y;let colDn=null,best=Infinity;
+  for(const y of [ty-1,ty,ty+1]){const m=build(y),ds=Object.values(m),lo=Math.min(...ds),hi=Math.max(...ds);const sc=todayDn<lo?lo-todayDn:todayDn>hi?todayDn-hi:0;if(sc<best){best=sc;colDn=m;}}
+  const allCols=Object.keys(colDn).map(Number).sort((a,b)=>a-b);
+  const dns=allCols.map(c=>colDn[c]);
+  const tanks=[];
+  for(let r=2;r<values.length;r++){const row=values[r]||[];const label=cs(row[0]).split(/\n/)[0].trim();
+    if(!/^[A-Za-z]{1,5}\s*-?\d+/.test(label))continue;
+    tanks.push(parseTank(label.replace(/\s+/g,''),row,values[r+1]||[],colDn,allCols));r++;}
+  // link batches across tanks (brew date for BBT segments)
+  const segs=tanks.flatMap(t=>t.segs);
+  for(const s of segs)if(s.startType==='仕込')s.brewDn=s.startDn;
+  pairTransfers(tanks);
+  for(const s of segs){if(s.brewDn!=null)continue;if(s.src&&s.src.brewDn!=null){s.brewDn=s.src.brewDn;continue;}
+    if(s.no){const src=segs.filter(o=>o!==s&&o.no===s.no&&o.startType==='仕込'&&o.startDn<=s.startDn&&s.startDn-o.startDn<180).sort((a,b)=>b.startDn-a.startDn)[0];if(src)s.brewDn=src.startDn;}}
+  return {tanks,colDn,first:Math.min(...dns),last:Math.max(...dns),segs};
+}
+function parseTank(label,nameRow,evRow,colDn,allCols){
+  const kind=/^BBT/i.test(label)?'BBT':'FV';const names=[],cells={};
+  for(const c of allCols){const n=cs(nameRow[c]);if(n)names.push({c,name:n.replace(/\s+/g,' ')});const e=parseEv(evRow[c]);if(e)cells[c]=e;}
+  const isStart=e=>e&&(e.type==='仕込'||e.type==='受入');const used=new Set(),starts=[];
+  for(const nm of names){let s=null;for(const off of [0,1,-1,2,-2,3,-3]){const c=nm.c+off;if(isStart(cells[c])&&!used.has(c)){s=c;break;}}if(s==null)s=nm.c;if(used.has(s))continue;used.add(s);starts.push({start:s,name:nm.name});}
+  for(const c of allCols){if(isStart(cells[c])&&!used.has(c)){used.add(c);starts.push({start:c,name:''});}}
+  starts.sort((a,b)=>a.start-b.start);
+  const occ=allCols.filter(c=>cells[c]);
+  if(occ.length&&(!starts.length||occ[0]<starts[0].start))starts.unshift({start:occ[0],name:''});
+  const segs=[];
+  for(let i=0;i<starts.length;i++){const st=starts[i];const end=i+1<starts.length?starts[i+1].start-1:allCols[allCols.length-1];
+    let lastOcc=st.start;const events=[];
+    for(const c of allCols){if(c<st.start||c>end)continue;const e=cells[c];if(!e)continue;lastOcc=c;if(e.num===undefined)events.push({dn:colDn[c],type:e.type,label:e.label,acid:e.acid,tank:label});}
+    const no=(st.name.match(/#\s*(\d+)/)||[])[1]||'';
+    const beer=st.name.replace(/[（(]\s*#?\s*\d+\s*[）)]\s*$/,'').trim();
+    segs.push({tank:label,kind,name:st.name,beer,no,startDn:colDn[st.start],endDn:colDn[lastOcc],startType:(cells[st.start]||{}).type||null,events,brewDn:null});}
+  return {label,kind,segs};
+}
+/* 移動 (FV) and 受入 (BBT) on the same day are one transfer: pair them by batch no, then beer name, then the only pair left */
+function pairTransfers(tanks){const byDay={};const norm=x=>(x||'').toLowerCase().replace(/[\s_\-]/g,'');
+  for(const t of tanks)for(const s of t.segs)for(const e of s.events){
+    if(e.type==='移動'&&t.kind==='FV')(byDay[e.dn]||(byDay[e.dn]={mv:[],rc:[]})).mv.push({e,s});
+    if(e.type==='受入'&&t.kind==='BBT')(byDay[e.dn]||(byDay[e.dn]={mv:[],rc:[]})).rc.push({e,s});}
+  for(const k in byDay){const {mv,rc}=byDay[k];const used=new Set();
+    const tryPair=pred=>{for(const r of rc){if(r.e.from)continue;const m=mv.find(m=>!used.has(m)&&pred(m,r));if(m){used.add(m);r.e.from=m.s.tank;m.e.to=r.s.tank;m.e.toSeg=r.s;r.s.src=m.s;}}};
+    tryPair((m,r)=>m.s.no&&m.s.no===r.s.no);
+    tryPair((m,r)=>norm(m.s.beer)&&norm(m.s.beer)===norm(r.s.beer));
+    if(mv.filter(m=>!used.has(m)).length===1&&rc.filter(r=>!r.e.from).length===1)tryPair(()=>true);}}
+function evLabel(e){if(e.type==='移動')return '移送'+(e.to?'→'+e.to:'');if(e.type==='受入')return '移送'+(e.from?' '+e.from+'→':'');return e.label;}
+const bkey=s=>s.no?('n'+s.no):('b'+h32(s.beer||s.name||String(s.startDn)));
+function journey(seg){const set=[seg];const add=o=>{if(o&&!set.includes(o))set.push(o);};
+  add(seg.src);S.sched.segs.forEach(o=>{if(o.src===seg)add(o);if(seg.no&&o.no===seg.no&&Math.abs(o.startDn-seg.startDn)<180)add(o);});
+  return set.flatMap(o=>o.events).filter(e=>!(e.type==='受入'&&e.from)).sort((a,b)=>a.dn-b.dn);}
+/* 土日祝（作業日でない日）。祝日は内閣府公表分。年が変わる前に追加すること */
+const HOLIDAYS=new Set(['2026-01-01','2026-01-12','2026-02-11','2026-02-23','2026-03-20','2026-04-29','2026-05-03','2026-05-04','2026-05-05','2026-05-06','2026-07-20','2026-08-11','2026-09-21','2026-09-22','2026-09-23','2026-10-12','2026-11-03','2026-11-23',
+  '2027-01-01','2027-01-11','2027-02-11','2027-02-23','2027-03-21','2027-03-22','2027-04-29','2027-05-03','2027-05-04','2027-05-05','2027-07-19','2027-08-11','2027-09-20','2027-09-23','2027-10-11','2027-11-03','2027-11-23',
+  '2028-01-01','2028-01-10','2028-02-11','2028-02-23','2028-03-20','2028-04-29','2028-05-03','2028-05-04','2028-05-05','2028-07-17','2028-08-11','2028-09-18','2028-09-22','2028-10-09','2028-11-03','2028-11-23']);
+function isOff(dn){const w=parts(dn).w;return w===0||w===6||HOLIDAYS.has(dnToIso(dn));}
+function bizBack(dn){let n=0;while(isOff(dn)&&n<14){dn--;n++;}return dn;}
+function hueOf(s){return 'var(--h'+(parseInt(h32(s.beer||s.name||'x'),36)%8)+')';}
+
+/* ---------- derived tasks ---------- */
+function tankTasks(D){const out=[],seen=new Set();if(!S.sched)return out;const ds=dnToIso(D);
+  const push=(key,text,tank,sub,na)=>{if(seen.has(key))return;seen.add(key);out.push({key,text,tank,sub,na:!!na,date:ds});};
+  for(const t of S.sched.tanks)for(const s of t.segs){const who=(s.beer||s.name||'(名称なし)')+(s.no?' #'+s.no:'');
+    for(const e of s.events){if(e.dn!==D)continue;
+      if(e.type==='受入'&&e.from)continue; // shown with the FV's 移動
+      const tr=e.type==='移動'||e.type==='受入';
+      const w=(!s.beer&&!s.name&&e.toSeg)?((e.toSeg.beer||e.toSeg.name)+(e.toSeg.no?' #'+e.toSeg.no:'')):who;
+      const tag=e.type==='移動'?`${t.label}→${e.to||'BBT'}`:e.type==='受入'?`→${t.label}`:t.label;
+      push(h32(`ev|${t.label}|${e.type||e.label}|${bkey(s)}|${ds}`),`${tr?'移送':e.label}　${w}`,tag);
+      if(e.type!=='受入')for(const r of S.rules)if(r.kind==='event'&&r.event===e.type&&cs(r.label))push(h32(`rl|${cs(r.label)}|${bkey(s)}|${ds}`),`${cs(r.label)}　${w}`,t.label,true);
+      if(e.acid)push(h32(`acid|${t.label}|${ds}`),'酸洗浄',t.label);}
+    if(s.kind==='FV'&&s.startType==='仕込')for(const r of S.rules)if(r.kind==='offset'&&cs(r.label)&&(!cs(r.event)||cs(r.event)==='仕込')&&s.startDn+(+r.days||0)===D)push(h32(`ro|${r.id}|${bkey(s)}|${ds}`),`${cs(r.label)}　${who}`,t.label,true);
+    /* offset rules on other events (e.g. 缶詰 -2 = 2 days before canning; 土日祝なら前の平日へ) */
+    for(const e of s.events)for(const r of S.rules){if(r.kind!=='offset'||!cs(r.label)||!cs(r.event)||cs(r.event)==='仕込'||e.type!==cs(r.event))continue;
+      const n=+r.days||0;let tg=e.dn+n;if(n<0)tg=bizBack(tg);
+      if(tg===D)push(h32(`ro|${r.id}|${bkey(s)}|${ds}`),`${cs(r.label)}　${who}`,t.label,true,true);}}
+  return out;}
+function routinesFor(D){const p=parts(D),lastDay=new Date(Date.UTC(p.y,p.m,0)).getUTCDate();
+  return S.routines.filter(r=>{switch(r.freq){case 'daily':return true;case 'weekdays':return p.w>=1&&p.w<=5;case 'weekly':return p.w===(+r.dow||0);
+    case 'monthly':{const dom=Math.max(1,Math.min(31,+r.dom||1));return p.d===Math.min(dom,lastDay);}
+    case 'interval':{const ds=dnToIso(D);if(isDone(ds,'r-'+r.id))return true;const last=intervalLast(r,ds);return !last||D-isoToDn(last)>=(+r.dom||14);}
+    default:return false;}})
+    .sort((a,b)=>(a.order||0)-(b.order||0));}
+const isDone=(ds,key)=>!!S.done[ds+'_'+key];
+/* DH: Excel（02.仕込み の Brew / Fermentation）から定期タスクが batches に書き込んだ記録で判定。ボードでは編集しない */
+function dhInfo(bk,brewDn){const b=S.batches[bk]||{};const x=b.dh1&&b.dh1.src==='xlsx'?b.dh1:null;
+  if(!x)return {ok:false,why:'nofile'};
+  if(brewDn!=null&&x.brew&&Math.abs(isoToDn(x.brew)-brewDn)>3)return {ok:false,why:'brew',x};
+  const y=b.dh2||{};return {ok:true,x,p1:!!x.plan,p2:!!y.plan,d1:x.done&&x.date?x.date:null,d2:y.done&&y.date?y.date:null,fd:x.fermDone||null};}
+function dhAlertsFor(t,D){const out=[];if(t.kind!=='FV'||!S.sched)return out;const cur=t.segs.find(s=>s.startDn<=D&&D<=s.endDn);
+  if(!cur||cur.startType!=='仕込'||cur.brewDn==null)return out;const bk=bkey(cur),inf=dhInfo(bk,cur.brewDn);if(!inf.ok)return out;
+  const who=(cur.beer||cur.name||'(名称なし)')+(cur.no?' #'+cur.no:'');
+  if(inf.p1&&!inf.d1){const due1=cur.brewDn+2;if(D>=due1)out.push({f:'dh1',label:'DH1（発酵中）の記録なし',due:due1,dueLbl:'期限',bk,who,tank:t.label});}
+  const mv=cur.events.find(e=>e.type==='移動');if(mv&&inf.p2&&!inf.d2){const due2=mv.dn-14;if(D>=due2)out.push({f:'dh2',label:'DH2（発酵後）の記録なし',due:due2,dueLbl:'期限',bk,who,tank:t.label});}
+  return out;}
+/* After 発酵後DH: CO2 POP for the next 2 days, then ホップ抜き — until someone picks a stage after that point */
+function autoStage(seg,D){const inf=dhInfo(bkey(seg),seg.brewDn);if(!inf.ok||!inf.d2)return null;const d=isoToDn(inf.d2);
+  if(D>=d+1&&D<=d+2)return {stage:'CO2 POP',from:d+1};if(D>=d+3)return {stage:'ホップ抜き',from:d+3};return null;}
+function dhAlerts(D){return S.sched?S.sched.tanks.flatMap(t=>dhAlertsFor(t,D)):[];}
+function intervalLast(r,ds){const suf='_r-'+r.id;let last=null;for(const id in S.done){if(id.endsWith(suf)){const d=id.slice(0,10);if(d<ds&&(!last||d>last))last=d;}}return last;}
+
+/* ---------- render ---------- */
+function render(){renderTop();renderTanks();renderTasks();renderTimeline();renderSettings();}
+function renderTop(){const D=isoToDn(S.view),p=parts(D);
+  $('#dateLabel').textContent=`${p.y}年${p.m}月${p.d}日(${WD[p.w]})`;
+  $('#tasksH').textContent=S.view===S.today?'今日のタスク':`${p.m}/${p.d}(${WD[p.w]}) のタスク`;
+  $('#todayBtn').disabled=S.view===S.today;
+  const pill=$('#syncPill'),tx=$('#syncText');
+  if(S.offline){pill.dataset.s='error';tx.textContent='オフライン';}
+  else if(S.src==='live'){pill.dataset.s='live';tx.textContent='同期 '+hm(S.syncedAt);}
+  else if(S.src==='cache'){pill.dataset.s='cache';tx.textContent='共有スナップショット '+hm(S.syncedAt);}
+  else if(S.sheetErr){pill.dataset.s='error';tx.textContent='スケジュール未取得';}
+  else{pill.dataset.s='loading';tx.textContent='タンクスケジュールを読み込み中';}
+  
+  const sel=$('#newTank');if(S.sched&&sel.options.length<=1){for(const t of S.sched.tanks){const o=document.createElement('option');o.value=t.label;o.textContent=t.label;sel.appendChild(o);}}
+  if(!$('#newDue').value)$('#newDue').value=S.view;
+  $('#addBtn').disabled=!S.db||S.canWrite===false;}
+function stateOf(t,D){const cur=t.segs.find(s=>s.startDn<=D&&D<=s.endDn)||null;const next=t.segs.find(s=>s.startDn>D)||null;return {cur,next,todayEv:cur?cur.events.filter(e=>e.dn===D):[]};}
+function renderTanks(){const g=$('#tankGrid'),sc=S.sched;
+  if(!sc){g.innerHTML=`<div class="notice">${S.sheetErr?esc(S.sheetErr):'タンクスケジュールを読み込み中です。'}</div>`;$('#tankSummary').textContent='';return;}
+  const D=isoToDn(S.view);
+  if(D<sc.first||D>sc.last){g.innerHTML=`<div class="notice">${mdw(D)} はタンクスケジュールの範囲外です（${md(sc.first)}〜${md(sc.last)}）。</div>`;$('#tankSummary').textContent='';return;}
+  let inUse=0,evToday=0;
+  g.innerHTML=sc.tanks.map(t=>{const {cur,next,todayEv}=stateOf(t,D);if(cur)inUse++;evToday+=todayEv.length;
+    let state='empty',chip='空き',body='',pct=0;
+    if(cur){const brew=cur.brewDn;
+      if(todayEv.length){state='today';chip='本日 '+todayEv.map(e=>evLabel(e)+(e.acid?'(酸)':'')).join('・');}
+      else if(t.kind==='BBT'){state='bbt';chip=cur.events.some(e=>e.dn<D&&FILLS.includes(e.type))?'充填中':'充填待ち';}
+      else{state='ferment';chip=brew!=null?`仕込 ${D-brew+1}日目`:'タンク内';}
+      pct=Math.round(100*(D-cur.startDn+1)/(cur.endDn-cur.startDn+1));
+      const subs=[];if(cur.no)subs.push('#'+cur.no);if(brew!=null)subs.push('仕込 '+md(brew));if(t.kind==='BBT')subs.push('移送 '+md(cur.startDn)+(cur.src?'（'+cur.src.tank+'から）':''));
+      if(t.kind==='BBT'&&brew!=null)subs.push(`${D-brew+1}日目`);
+      const up=journey(cur).filter(e=>e.dn>D).slice(0,3);
+      const ups=up.length?`<ul class="next">${up.map(e=>`<li class="${e.dn-D<=2?'soon':''}"><span>${e.tank!==t.label?esc(e.tank)+' ':''}${esc(evLabel(e))}${e.acid?'(酸)':''} ${mdw(e.dn)}</span><span>${rel(e.dn-D)}</span></li>`).join('')}</ul>`:'<div class="sub">この先の作業はスケジュールにありません</div>';
+      const st=S.stages[t.label],bk=bkey(cur);let val=st&&st.bkey===bk?st.stage:'',isAuto=false;
+      const au=t.kind==='FV'?autoStage(cur,D):null;
+      if(au){const setDn=st&&st.bkey===bk&&st.at?Math.floor((+st.at+9*3600e3)/DAY):-Infinity;if(setDn<au.from){val=au.stage;isAuto=true;}}
+      const stage=S.db?`<label class="stage">工程${isAuto?'（自動）':''}<select data-stage="${esc(t.label)}" data-bkey="${esc(bk)}" ${S.canWrite===false?'disabled':''}><option value="">未設定</option>${STAGES.map(([v,l])=>`<option value="${v}"${v===val?' selected':''}>${l}</option>`).join('')}</select></label>`:'';
+      body=`<div class="beer">${esc(cur.beer||cur.name||'（名称なし）')}</div><div class="sub mono">${esc(subs.join(' · '))}</div>${ups}${t.kind==='FV'&&cur.startType==='仕込'?dhHTML(cur,dhAlertsFor(t,D)):''}${stage}`;}
+    else{body=`<div class="beer dim">空き</div>`+(next?`<div class="sub">次：<b>${esc(next.beer||next.name||'（名称なし）')}</b>${next.no?' #'+esc(next.no):''}<br>${esc(next.startType==='受入'?'移送':(next.startType||'開始'))} ${mdw(next.startDn)}・${rel(next.startDn-D)}</div>`:'<div class="sub">予定なし</div>');}
+    const al=dhAlertsFor(t,D);if(al.length)body+=`<div class="alert-line">${al.map(a=>esc(a.label)+'（'+a.dueLbl+' '+md(a.due)+'）').join('<br>')}</div>`;
+    return `<article class="tank${al.length?' alert':''}" data-state="${state}"><div class="t-head"><span class="t-id">${esc(t.label)}</span><span class="chip">${esc(chip)}</span></div>${body}<div class="gauge" title="タンク内の経過 ${pct}%"><i style="height:${pct}%"></i></div></article>`;}).join('');
+  $('#tankSummary').textContent=`使用中 ${inUse} / ${sc.tanks.length}　・　この日の作業 ${evToday} 件`;}
+function dhHTML(seg,al){const inf=dhInfo(bkey(seg),seg.brewDn);
+  if(!inf.ok)return `<div class="dh na"><span>${inf.why==='brew'?'DH：仕込みファイルの仕込日（'+md(isoToDn(inf.x.brew))+'）が予定と違います':'DH：仕込みファイル未取込'}</span></div>`;
+  const it=[['dh1','DH1 発酵中',inf.p1,inf.d1],['dh2','DH2 発酵後',inf.p2,inf.d2]].filter(r=>r[2]||r[3]);
+  const chips=it.length?it.map(([f,l,p,d])=>{const late=(al||[]).some(a=>a.f===f);return `<span class="dhc ${d?'on':late?'late':''}">${l} ${d?'✓<span class="mono">'+md(isoToDn(d))+'</span>':'未記録'}</span>`;}).join(''):'<span class="dhc">DHなし</span>';
+  const meta=inf.fd?'発酵終了 '+md(isoToDn(inf.fd)):'';
+  return `<div class="dh">${chips}${meta?`<span class="dhm">${esc(meta)}</span>`:''}</div>`;}
+function taskLi({id,checked,text,meta,attrs,del}){return `<li class="task${checked?' done':''}"><input type="checkbox" id="${id}" ${attrs} ${checked?'checked':''} ${(!S.db||S.canWrite===false)?'disabled':''}><label for="${id}">${esc(text)}</label><span class="meta">${meta||''}${del||''}</span></li>`;}
+function renderTasks(){const D=isoToDn(S.view),ds=S.view;let total=0,doneN=0;const groups=[];
+  const tt=tankTasks(D).map(t=>{const c=isDone(ds,t.key);total++;if(c)doneN++;return taskLi({id:'d'+t.key,checked:c,text:t.text,meta:`<span class="tag">${esc(t.tank)}</span>`,attrs:`data-date="${ds}" data-key="${t.key}" data-label="${esc(t.text)}"`});});
+  const al=(ds<=S.today?dhAlerts(D):[]).map(a=>`<li class="task"><span class="al-mark" aria-hidden="true">!</span><span>${esc(a.label)}　${esc(a.who)}</span><span class="meta"><span class="late">${a.dueLbl} ${md(a.due)}</span><span class="tag">${esc(a.tank)}</span></span></li>`);
+  if(al.length)groups.push(['アラート（Excelの作業記録に書くと消えます）',al,'']);
+  const evs=S.routines.filter(r=>r.freq==='date'&&cs(r.note)===ds).sort((a,b)=>(a.order||0)-(b.order||0)).map(r=>`<li class="task evt"><span class="evm" aria-hidden="true"></span><span>${esc(cs(r.title)||'（無題）')}</span></li>`);
+  if(evs.length)groups.push(['予定',evs,'']);
+  groups.push(['タンク作業（スケジュールから）',tt,'この日のタンク作業はありません']);
+  const carry=[];for(let k=3;k>=1;k--){const pd=D-k,pds=dnToIso(pd);if(pds<dnToIso(isoToDn(S.today)-3))continue;
+    for(const t of tankTasks(pd))if(!isDone(pds,t.key))carry.push(taskLi({id:'c'+t.key+k,checked:false,text:t.text,meta:`<span class="late">${md(pd)}</span><span class="tag">${esc(t.tank)}</span>`,attrs:`data-date="${pds}" data-key="${t.key}" data-label="${esc(t.text)}"`}));}
+  if(carry.length)groups.push(['持ち越し（過去3日の未完了）',carry,'']);
+  const rt=routinesFor(D).map(r=>{const key='r-'+r.id,c=isDone(ds,key);total++;if(c)doneN++;return taskLi({id:'r'+r.id,checked:c,text:cs(r.title)||'（無題）',meta:(r.freq==='interval'&&!c?`<span>${(l=>l?'前回 '+md(isoToDn(l)):'未実施')(intervalLast(r,ds))}</span>`:'')+(r.note?`<span>${esc(r.note)}</span>`:''),attrs:`data-date="${ds}" data-key="${key}" data-label="${esc(cs(r.title))}"`});});
+  groups.push(['定例',rt,S.db?'この日の定例タスクはありません':'']);
+  const adhoc=S.tasks.filter(t=>(!t.done&&cs(t.due)<=ds)||(t.done&&(t.doneDate===ds||(!t.doneDate&&t.due===ds)))).sort((a,b)=>cs(a.due).localeCompare(cs(b.due)))
+    .map(t=>{total++;if(t.done)doneN++;const late=!t.done&&t.due<ds;
+      return taskLi({id:'t'+t.id,checked:!!t.done,text:cs(t.title),meta:`${late?`<span class="late">${md(isoToDn(t.due))}期限</span>`:''}${t.tank?`<span class="tag">${esc(t.tank)}</span>`:''}${t.who?`<span>${esc(t.who)}</span>`:''}`,attrs:`data-task="${esc(t.id)}"`,del:(S.db&&S.canWrite!==false)?`<button class="x" data-del="${esc(t.id)}" title="削除">✕</button>`:''});});
+  groups.push(['単発',adhoc,'期限が来ている単発タスクはありません']);
+  let html='';
+  if(S.offline)html+=`<div class="notice" style="margin-bottom:8px">サーバーに接続できません。チェックや追加は保存されない可能性があります。</div>`;
+  html+=groups.map(([h,items,emp])=>`<div class="grp"><h3><span>${h}</span><span>${items.length?items.length+'件':''}</span></h3>${items.length?`<ul class="tl">${items.join('')}</ul>`:(emp?`<div class="empty-line">${emp}</div>`:'')}</div>`).join('');
+  $('#taskBody').innerHTML=html;$('#taskCount').textContent=total?`${doneN} / ${total} 完了`:'';
+  // agenda
+  const ag=[];for(let k=1;k<=7;k++){const d=D+k,dds=dnToIso(d);const its=[...tankTasks(d).map(t=>`<li><span class="tag">${esc(t.tank)}</span> ${esc(t.text)}</li>`),
+    ...S.tasks.filter(t=>!t.done&&t.due===dds).map(t=>`<li>${esc(cs(t.title))}${t.who?` <span class="sub">${esc(t.who)}</span>`:''}</li>`)];
+    if(its.length)ag.push(`<div class="ag-day"><span class="dd">${mdw(d)}</span><ul>${its.join('')}</ul></div>`);}
+  $('#agenda').innerHTML=ag.join('')||'<div class="empty-line">予定されている作業はありません</div>';}
+function renderTimeline(){const el=$('#timeline'),sc=S.sched;if(!sc){el.innerHTML='';return;}
+  const D=isoToDn(S.view),w0=D-2,w1=D+12;let h='<div class="hd"></div>';
+  for(let d=w0;d<=w1;d++){const p=parts(d);h+=`<div class="hd${d===D?' now':''}${(p.w===0||p.w===6)&&d!==D?' we':''}">${p.m}/${p.d}<br>${WD[p.w]}</div>`;}
+  for(const t of sc.tanks){h+=`<div class="rl">${esc(t.label)}</div><div class="tlrow"><div class="nowcol" style="grid-column:${D-w0+1}"></div>`;
+    for(const s of t.segs){if(s.endDn<w0||s.startDn>w1)continue;const a=Math.max(s.startDn,w0),b=Math.min(s.endDn,w1);const hue=hueOf(s);
+      h+=`<div class="blk" style="grid-column:${a-w0+1}/${b-w0+2};background:color-mix(in oklab,${hue} 22%,var(--surface));color:color-mix(in oklab,${hue} 75%,var(--ink));border:1px solid color-mix(in oklab,${hue} 45%,transparent)" title="${esc(s.name)}">${esc(s.beer||s.name||'')}</div>`;
+      for(const e of s.events){if(e.dn<w0||e.dn>w1)continue;h+=`<div class="mk${e.acid?' acid':''}" style="grid-column:${e.dn-w0+1}" title="${esc(e.label)}${e.acid?'（酸洗浄）':''} ${md(e.dn)}">${esc(EV_SHORT[e.type]||e.label.slice(0,1))}</div>`;}}
+    h+='</div>';}
+  el.innerHTML=h;}
+function renderSettings(){
+  const rbox=$('#routineList');if(!rbox.contains(document.activeElement)){
+    rbox.innerHTML=!S.db?'<div class="empty-line">保存先に接続できないため編集できません。</div>':(S.routines.length?S.routines.filter(r=>r.freq!=='date'||!r.note||r.note>=dnToIso(isoToDn(S.today)-30)).sort((a,b)=>(a.order||0)-(b.order||0)).map(r=>`<div class="srow">
+      <input class="grow" id="rt-${esc(r.id)}" value="${esc(cs(r.title))}" data-rid="${esc(r.id)}" data-f="title" aria-label="タスク名">
+      <select id="rf-${esc(r.id)}" data-rid="${esc(r.id)}" data-f="freq" aria-label="頻度">${[['daily','毎日'],['weekdays','平日'],['weekly','毎週'],['monthly','毎月'],['interval','N日ごと'],['date','日付指定（予定）']].map(([v,l])=>`<option value="${v}"${r.freq===v?' selected':''}>${l}</option>`).join('')}</select>
+      ${r.freq==='weekly'?`<select id="rw-${esc(r.id)}" data-rid="${esc(r.id)}" data-f="dow" aria-label="曜日">${[...WD].map((w,i)=>`<option value="${i}"${(+r.dow||0)===i?' selected':''}>${w}曜</option>`).join('')}</select>`
+        :r.freq==='monthly'?`<input id="rm-${esc(r.id)}" type="number" min="1" max="31" value="${esc(r.dom||1)}" data-rid="${esc(r.id)}" data-f="dom" aria-label="日付">`
+        :r.freq==='interval'?`<input id="ri-${esc(r.id)}" type="number" min="1" max="90" value="${esc(r.dom||14)}" data-rid="${esc(r.id)}" data-f="dom" aria-label="間隔（日）">`
+        :r.freq==='date'?`<input id="rd-${esc(r.id)}" type="date" value="${esc(cs(r.note))}" data-rid="${esc(r.id)}" data-f="note" aria-label="日付">`:'<span></span>'}
+      <button class="x" data-rdel="${esc(r.id)}" title="削除">✕</button></div>`).join(''):'<div class="empty-line">まだありません。「定例タスクを追加」から登録できます。</div>');}
+  const lbox=$('#ruleList');if(!lbox.contains(document.activeElement)){
+    lbox.innerHTML=!S.db?'<div class="empty-line">保存先に接続できないため編集できません。</div>':(S.rules.length?S.rules.map(r=>`<div class="srow">
+      <input class="grow" id="lt-${esc(r.id)}" value="${esc(cs(r.label))}" data-lid="${esc(r.id)}" data-f="label" aria-label="作るタスク">
+      <select id="lk-${esc(r.id)}" data-lid="${esc(r.id)}" data-f="kind" aria-label="きっかけ"><option value="event"${r.kind!=='offset'?' selected':''}>作業の当日</option><option value="offset"${r.kind==='offset'?' selected':''}>作業の N 日後（前日は -1）</option></select>
+      ${r.kind==='offset'?`<span style="display:flex;gap:6px;min-width:0"><select id="lo-${esc(r.id)}" data-lid="${esc(r.id)}" data-f="event" aria-label="作業">${['仕込','移動','缶詰','樽詰','瓶詰'].map(v=>`<option value="${v}"${(cs(r.event)||'仕込')===v?' selected':''}>${v}</option>`).join('')}</select><input id="ld-${esc(r.id)}" type="number" min="-30" max="120" value="${esc(r.days??7)}" data-lid="${esc(r.id)}" data-f="days" aria-label="日数"></span>`
+        :`<select id="le-${esc(r.id)}" data-lid="${esc(r.id)}" data-f="event" aria-label="作業">${[['仕込','仕込'],['移動','移送（移動・受入）'],['缶詰','缶詰'],['樽詰','樽詰'],['瓶詰','瓶詰']].map(([v,l])=>`<option value="${v}"${r.event===v?' selected':''}>${l}</option>`).join('')}</select>`}
+      <button class="x" data-ldel="${esc(r.id)}" title="削除">✕</button></div>`).join(''):'<div class="empty-line">まだありません。「ルールを追加」から登録できます。</div>');}
+  $('#addRoutine').disabled=$('#addRule').disabled=!S.db||S.canWrite===false;}
+
+/* ---------- interactions ---------- */
+let toastT;function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,3200);}
+function writeErr(e){if(e&&e.code==='auth')return;toast(e&&e.code==='offline'?'接続できません。電波を確認してください':'保存に失敗しました。もう一度お試しください');}
+function shiftDay(n){S.view=dnToIso(isoToDn(S.view)+n);$('#newDue').value=S.view;subDone();render();}
+$('#prevDay').onclick=()=>shiftDay(-1);$('#nextDay').onclick=()=>shiftDay(1);
+$('#todayBtn').onclick=()=>{S.today=todayISO();S.view=S.today;$('#newDue').value=S.view;subDone();render();};
+$('#refreshBtn').onclick=async()=>{const b=$('#refreshBtn');b.disabled=true;try{await refresh(true);if(!S.offline)toast('最新の状態に更新しました');}finally{b.disabled=false;}};
+document.addEventListener('change',async ev=>{const el=ev.target;if(!S.db)return;
+  try{
+    if(el.dataset.key){const id=el.dataset.date+'_'+el.dataset.key;
+      if(el.checked)await S.db.doc('done/'+id).set({date:el.dataset.date,key:el.dataset.key,label:el.dataset.label||'',at:Date.now()});
+      else await S.db.doc('done/'+id).delete();}
+    else if(el.dataset.task){await S.db.doc('tasks/'+el.dataset.task).update({done:el.checked,doneDate:el.checked?S.view:null});}
+    else if(el.dataset.stage){await S.db.doc('stages/'+el.dataset.stage).set({bkey:el.dataset.bkey,stage:el.value,at:Date.now()});}
+    else if(el.dataset.rid){let v=el.value;if(el.dataset.f==='dow'||el.dataset.f==='dom')v=+v;await S.db.doc('routines/'+el.dataset.rid).update({[el.dataset.f]:v});}
+    else if(el.dataset.lid){let v=el.value;if(el.dataset.f==='days')v=+v;await S.db.doc('rules/'+el.dataset.lid).update({[el.dataset.f]:v});}
+  }catch(e){writeErr(e);}});
+document.addEventListener('click',async ev=>{
+  const b=ev.target.closest('[data-del],[data-rdel],[data-ldel]');if(!b||!S.db)return;
+  if(!b.classList.contains('arm')){b.classList.add('arm');b.textContent='削除';setTimeout(()=>{b.classList.remove('arm');b.textContent='✕';},3000);return;}
+  const path=b.dataset.del?'tasks/'+b.dataset.del:b.dataset.rdel?'routines/'+b.dataset.rdel:'rules/'+b.dataset.ldel;
+  try{await S.db.doc(path).delete();toast('削除しました');}catch(e){writeErr(e);}});
+$('#addForm').addEventListener('submit',async ev=>{ev.preventDefault();if(!S.db)return;const title=$('#newTitle').value.trim();if(!title)return;
+  try{if($('#newIsEvent').checked){await S.db.collection('routines').add({title,freq:'date',dow:1,dom:1,note:$('#newDue').value||S.view,order:Date.now()});
+      $('#newTitle').value='';$('#newIsEvent').checked=false;toast('予定を追加しました');return;}
+    await S.db.collection('tasks').add({title,due:$('#newDue').value||S.view,who:$('#newWho').value.trim(),tank:$('#newTank').value,done:false,doneDate:null,createdAt:Date.now()});
+    $('#newTitle').value='';toast('追加しました');}catch(e){writeErr(e);}});
+$('#addRoutine').onclick=async()=>{try{await S.db.collection('routines').add({title:'新しい定例タスク',freq:'weekdays',dow:1,dom:1,note:'',order:Date.now()});}catch(e){writeErr(e);}};
+$('#addRule').onclick=async()=>{try{await S.db.collection('rules').add({kind:'event',event:'缶詰',days:7,label:'新しいルール'});}catch(e){writeErr(e);}};
+
+/* ---------- data: Apps Script backend ---------- */
+const COLS={tasks:'tasks',routines:'routines',rules:'rules',batches:'batches',stages:'stages',done:'done'};
+const API_URL='https://script.google.com/macros/s/AKfycbxOxw4dyY9HO7KxVGBWpGfKXkaQfKB_oTkP73aohQD8dV-LDKR0ZP6QW-kk-x_hDzSHaQ/exec';
+const KEY_STORE='brewboard.k';
+function getKey(){try{return localStorage.getItem(KEY_STORE)||'';}catch(e){return S.key||'';}}
+function setKey(k){S.key=k;try{if(k)localStorage.setItem(KEY_STORE,k);else localStorage.removeItem(KEY_STORE);}catch(e){}}
+async function gas(fn,arg){
+  const k=S.key||getKey();if(!k){showLock();throw {code:'auth'};}
+  let r;
+  try{r=await fetch(API_URL,{method:'POST',credentials:'omit',redirect:'follow',cache:'no-store',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({k,fn:fn==='apiGetAll'?'getAll':fn==='apiWrite'?'write':fn,arg})});}
+  catch(e){throw {code:'offline'};}
+  let j;try{j=await r.json();}catch(e){throw {code:'server',message:'HTTP '+r.status};}
+  if(j&&j.error==='auth'){setKey('');showLock(true);throw {code:'auth'};}
+  if(!j||!j.ok)throw {code:'server',message:String(j&&j.message||'error')};
+  return j.data;}
+function showLock(wrong){const l=$('#lock');if(!l.hidden&&!wrong)return;l.hidden=false;$('#lockErr').hidden=!wrong;
+  const i=$('#lockInput');i.value='';setTimeout(()=>i.focus(),50);}
+$('#lockForm').addEventListener('submit',async ev=>{ev.preventDefault();const v=$('#lockInput').value.trim();if(!v)return;
+  const b=$('#lockBtn');b.disabled=true;b.textContent='確認中…';
+  try{const r=await fetch(API_URL,{method:'POST',credentials:'omit',redirect:'follow',cache:'no-store',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({k:v,fn:'ping'})});
+    const j=await r.json();
+    if(j&&j.ok){setKey(v);$('#lock').hidden=true;refresh(true);}
+    else{$('#lockErr').textContent='合言葉が違います';$('#lockErr').hidden=false;$('#lockInput').select();}}
+  catch(e){$('#lockErr').textContent='接続できません。電波を確認してください';$('#lockErr').hidden=false;}
+  finally{b.disabled=false;b.textContent='開く';}});
+function newId(p){return p+Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
+function applyLocal(op,col,id,data){
+  if(col==='done'){if(op==='delete')delete S.done[id];else S.done[id]=true;return;}
+  if(col==='batches'||col==='stages'){const m=S[col];if(op==='delete')delete m[id];else m[id]=op==='update'?{...(m[id]||{}),...data}:{...data};return;}
+  const arr=S[col];const i=arr.findIndex(x=>x.id===id);
+  if(op==='delete'){if(i>=0)arr.splice(i,1);return;}
+  const doc=op==='update'&&i>=0?{...arr[i],...data}:{id,...data};if(i>=0)arr[i]=doc;else arr.push(doc);}
+let writeChain=Promise.resolve();
+function write(op,col,id,data){applyLocal(op,col,id,data);render();
+  const p=writeChain.then(()=>gas('apiWrite',{op,col,id,data:data||null}));writeChain=p.catch(()=>{});
+  return p.then(()=>{scheduleRefresh(1500);}).catch(e=>{refresh();throw e;});}
+S.db={doc(path){const [col,id]=path.split('/');return {set:d=>write('set',col,id,d),update:d=>write('update',col,id,d),delete:()=>write('delete',col,id)};},
+  collection(col){return {add:d=>write('set',col,newId(col.slice(0,1)),d)};}};
+S.canWrite=true;S.dbState='ok';
+function subDone(){const min=dnToIso(Math.min(isoToDn(S.today)-40,isoToDn(S.view)-4));if(S.doneMin&&S.doneMin<=min)return;S.doneMin=min;if(S.loadedOnce)refresh();}
+let refreshing=false,refreshT=null;
+function scheduleRefresh(ms){clearTimeout(refreshT);refreshT=setTimeout(refresh,ms);}
+async function refresh(fresh){if(refreshing&&!fresh)return;refreshing=true;
+  if(!S.doneMin)S.doneMin=dnToIso(Math.min(isoToDn(S.today)-40,isoToDn(S.view)-4));
+  try{const r=await gas('apiGetAll',{since:S.doneMin,fresh:!!fresh});S.loadedOnce=true;
+    S.tasks=(r.tasks||[]).filter(t=>!t.done||cs(t.doneDate||t.due)>=dnToIso(isoToDn(S.today)-30));
+    S.routines=r.routines||[];S.rules=r.rules||[];
+    const bm={};(r.batches||[]).forEach(d=>bm[d.id]=d);S.batches=bm;
+    const sm={};(r.stages||[]).forEach(d=>sm[d.id]=d);S.stages=sm;
+    const dm={};(r.done||[]).forEach(d=>dm[d.id]=true);S.done=dm;
+    if(r.tank&&r.tank.values){S.values=r.tank.values;S.src='live';S.syncedAt=r.tank.at;S.sched=parseSchedule(r.tank.values,isoToDn(S.today));
+      S.sheetErr=S.sched?null:'「タンクスケジュール」シートの形式を読み取れませんでした（1行目＝月、2行目＝日、A列＝タンク名を想定）。';}
+    else if(r.tank&&r.tank.error){if(!S.sched)S.sheetErr='タンクスケジュールを読めませんでした：'+r.tank.error;}
+    S.offline=false;
+  }catch(e){console.error('refresh failed',e&&(e.stack||e.message||e.code)||e);if(e&&e.code==='auth'){return;}S.offline=true;if(!S.sched)S.sheetErr='サーバーに接続できません。電波を確認して「再読込」を押してください。';else toast('最新の情報を取得できませんでした');}
+  finally{refreshing=false;render();scheduleRefresh(60000);}}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){const t=todayISO();if(t!==S.today){S.today=t;if(S.view<t)S.view=t;}refresh();}});
+/* ---------- app: install hint + offline shell ---------- */
+(function(){
+  const standalone=window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
+  let closed=false;try{closed=localStorage.getItem('brewboard.installClosed')==='1';}catch(e){}
+  const bar=$('#installBar'),txt=$('#installText'),btn=$('#installBtn');
+  let deferred=null;
+  $('#installClose').onclick=()=>{bar.hidden=true;try{localStorage.setItem('brewboard.installClosed','1');}catch(e){}};
+  if(standalone||closed)return;
+  const ua=navigator.userAgent;
+  if(/iPhone|iPad|iPod/.test(ua)){txt.innerHTML='<b>ホーム画面に追加</b>するとアプリとして使えます：Safari の共有ボタン（□↑）→「ホーム画面に追加」';bar.hidden=false;}
+  window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferred=e;
+    txt.innerHTML='<b>アプリとしてインストール</b>すると、ホーム画面やデスクトップから開けます';btn.hidden=false;bar.hidden=false;});
+  btn.onclick=async()=>{if(!deferred)return;deferred.prompt();try{await deferred.userChoice;}catch(e){}deferred=null;bar.hidden=true;};
+  window.addEventListener('appinstalled',()=>{bar.hidden=true;});
+})();
+if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});}
+S.key=getKey();
+render();if(S.key)refresh();else showLock();
+</script>
+</body></html>
