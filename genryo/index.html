@@ -1,0 +1,760 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icons/favicon-64.png"><link rel="apple-touch-icon" href="icons/apple-touch-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="原料棚卸"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="theme-color" content="#F3F4F1"><script>window.GC_API="https://script.google.com/macros/s/AKfycbzpSssoQ8ryl_89Bh8yCd2RLv17gg8bNGsIf4zYC_OcReZrceCiW7OQm38fcCcrudScSw/exec";window.GC_VERSION="20261027-1420";</script></head><body>
+<title>原料棚卸カウンター（スマホ）</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* 倉庫で片手で使う一列のリスト。上に置き場所のタブ、下に固定の「数え終わり」 */
+:root{
+  --bg:#F3F4F1; --panel:#FFFFFF; --ink:#1C221F; --muted:#5E6862; --line:#D9DDD7;
+  --malt:#A8640F; --malt-soft:#F6EBDD; --ok:#2B7A4B; --ok-soft:#E3F1E8;
+  --warn:#B3261E; --warn-soft:#FBE6E4; --note:#7A5A00; --note-soft:#FFF3CC;
+  --chip:#E8EBE6;
+  --f-body:"BIZ UDPGothic","Hiragino Sans","Yu Gothic UI","Meiryo",system-ui,sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#141816; --panel:#1D2320; --ink:#E7EBE8; --muted:#9AA59F; --line:#323A36;
+  --malt:#E3A04A; --malt-soft:#3A2C19; --ok:#6CC491; --ok-soft:#1C3326; --warn:#F08A82; --warn-soft:#3B1F1D;
+  --note:#E8C865; --note-soft:#3A3217; --chip:#2A312D; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141816; --panel:#1D2320; --ink:#E7EBE8; --muted:#9AA59F; --line:#323A36;
+  --malt:#E3A04A; --malt-soft:#3A2C19; --ok:#6CC491; --ok-soft:#1C3326; --warn:#F08A82; --warn-soft:#3B1F1D;
+  --note:#E8C865; --note-soft:#3A3217; --chip:#2A312D; color-scheme:dark}
+html,body{background:var(--bg);color:var(--ink)}
+body{font-family:var(--f-body);font-size:15px;line-height:1.55}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--panel)}
+.wrap{max-width:640px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 120px}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--panel);border-bottom:1px solid var(--line);margin:0 calc(-1*max(16px,env(safe-area-inset-left,0px))) 0;padding:10px max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px))}
+.toprow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+h1{font-size:17px;margin:0;font-weight:700;letter-spacing:.02em;text-wrap:balance}
+.month{font-family:var(--f-num);font-weight:600;font-size:13px;background:var(--malt-soft);color:var(--malt);padding:2px 8px;border-radius:4px}
+.who{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);min-width:0}
+.who img{width:22px;height:22px;border-radius:50%}
+.tabs{display:flex;gap:4px;margin-top:10px;overflow-x:auto}
+.tab{flex:1 0 auto;border:0;background:none;font:inherit;font-size:14px;color:var(--muted);padding:8px 10px 9px;border-bottom:3px solid transparent;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:96px}
+.tab b{font-weight:700}
+.tab .prog{font-family:var(--f-num);font-size:12px}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--malt)}
+.tab.done .prog{color:var(--ok)}
+.lead{color:var(--muted);font-size:13px;margin:14px 0 8px}
+.list{display:flex;flex-direction:column;gap:10px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px;display:grid;gap:10px}
+.card.st-done{border-color:color-mix(in srgb,var(--ok) 45%,var(--line))}
+.card.st-none{opacity:.85}
+.card.st-temp{border-color:color-mix(in srgb,var(--note) 60%,var(--line))}
+.head{display:flex;gap:8px;align-items:flex-start}
+.nm{min-width:0;flex:1}
+.nm .n{font-weight:700;font-size:16px;line-height:1.3}
+.nm .s{color:var(--muted);font-size:12px}
+.code{font-family:var(--f-num);font-size:11px;color:var(--muted)}
+.pill{flex:none;font-size:12px;padding:2px 8px;border-radius:999px;background:var(--chip);color:var(--muted);white-space:nowrap}
+.pill.done{background:var(--ok-soft);color:var(--ok)}
+.pill.none{background:var(--chip);color:var(--ink)}
+.pill.temp{background:var(--note-soft);color:var(--note)}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.lbl{font-size:13px;color:var(--muted);min-width:4.5em}
+.step{display:flex;align-items:stretch;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.step button{width:48px;height:48px;border:0;background:var(--chip);color:var(--ink);font-size:24px;line-height:1;cursor:pointer;font-family:var(--f-num)}
+.step button:active{background:var(--malt-soft)}
+.step input{width:64px;border:0;text-align:center;font-family:var(--f-num);font-size:22px;font-weight:600;background:var(--panel);color:var(--ink)}
+.kg{width:96px;height:44px;border:1px solid var(--line);border-radius:8px;text-align:right;padding:0 10px;font-family:var(--f-num);font-size:18px;background:var(--panel);color:var(--ink)}
+input::placeholder{color:color-mix(in srgb,var(--muted) 60%,transparent)}
+.unit{font-size:13px;color:var(--muted)}
+.total{margin-left:auto;font-family:var(--f-num);font-size:15px;font-weight:600}
+.foot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.foot .sp{flex:1}
+.btn{font:inherit;font-size:14px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 14px;border-radius:8px;cursor:pointer;min-height:40px}
+.btn.small{font-size:13px;padding:5px 10px;min-height:34px}
+.btn.primary{background:var(--malt);border-color:var(--malt);color:#fff;font-weight:700}
+.btn.ghost{border-color:transparent;background:none;color:var(--muted)}
+.btn.nonebtn[aria-pressed="true"]{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.btn:focus-visible,.tab:focus-visible,.step button:focus-visible,input:focus-visible{outline:2px solid var(--malt);outline-offset:2px}
+.memo{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit;font-size:14px;background:var(--panel);color:var(--ink)}
+.add{border:1px dashed var(--line);border-radius:8px;padding:12px;display:grid;gap:10px;background:transparent}
+.add h3{margin:0;font-size:14px}
+.cands{display:flex;flex-wrap:wrap;gap:6px}
+.cand{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer}
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--panel);border-top:1px solid var(--line);padding:10px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.bar .in{max-width:640px;margin:0 auto;display:flex;gap:10px;align-items:center}
+.bar .msg{font-size:13px;color:var(--muted);flex:1;min-width:0}
+.start{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;margin-top:18px;display:grid;gap:12px}
+.start h2{margin:0;font-size:18px}
+.start p{margin:0;color:var(--muted);font-size:14px}
+.sel{font:inherit;font-size:15px;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+.notice{background:var(--warn-soft);color:var(--warn);border-radius:8px;padding:10px 12px;font-size:14px}
+.info{background:var(--note-soft);color:var(--note);border-radius:8px;padding:10px 12px;font-size:13px}
+/* 突合 */
+.rec h2{font-size:16px;margin:18px 0 6px}
+.tblwrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left;white-space:normal;min-width:9em}
+th{font-size:12px;color:var(--muted);font-weight:400}
+td.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+tr.diff td{background:var(--warn-soft)}
+tr.diff td.d{color:var(--warn);font-weight:700}
+tr:last-child td{border-bottom:0}
+.sumrow{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.sum{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:13px}
+.sum b{font-family:var(--f-num);font-size:18px;display:block}
+.sum.bad b{color:var(--warn)} .sum.good b{color:var(--ok)} .sum.tmp b{color:var(--note)}
+.phmeta{font-size:12px;color:var(--muted);margin:24px 0 0}.phmeta a{color:var(--malt)}
+/* スマホ版 */
+.phbar{font-size:13px;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:10px 0 8px;display:grid;gap:4px}
+.phrow{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 10px}
+.phbar b{color:var(--ink);font-family:var(--f-num);font-weight:600}
+.phact{display:flex;gap:8px}
+.phbar button{font:inherit;font-size:13px;font-weight:700;border:0;border-radius:6px;padding:6px 14px;background:var(--malt);color:#fff;cursor:pointer;min-height:34px}
+.phbar button:disabled{opacity:.55}
+.phbar button.phlink,.phbox .phlink{background:none;color:var(--muted);font-weight:400;text-decoration:underline;padding:4px;min-height:0}
+.phwarn{color:var(--warn);font-weight:700}.phwait{color:var(--note);font-weight:700}
+.phmsg{background:var(--note-soft);color:var(--note);border-radius:6px;padding:6px 8px;font-size:13px}
+.phov{position:fixed;inset:0;z-index:20;background:color-mix(in srgb,var(--ink) 45%,transparent);display:grid;place-items:center;padding:16px}
+.phbox{background:var(--panel);border-radius:10px;padding:18px;display:grid;gap:12px;width:min(420px,100%)}
+.phbox h2{margin:0;font-size:18px}.phbox p{margin:0;color:var(--muted);font-size:14px}
+.phbox input{font:inherit;font-size:18px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink)}
+.phchips{display:flex;flex-wrap:wrap;gap:6px}
+.phchip{font:inherit;font-size:14px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:6px 12px}
+.phok{font:inherit;font-size:15px;font-weight:700;border:0;border-radius:8px;padding:10px 18px;background:var(--malt);color:#fff}
+.phmeta{display:none}
+.phupd{position:fixed;left:0;right:0;top:0;z-index:30;background:var(--malt);color:#fff;text-align:center;font-weight:700;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;cursor:pointer}
+.empty{color:var(--muted);text-align:center;padding:24px 8px;border:1px dashed var(--line);border-radius:8px}
+@media (prefers-reduced-motion:no-preference){.card{transition:border-color .2s}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="toprow">
+      <h1>原料棚卸カウンター</h1>
+      <span class="month" id="monthChip">—</span>
+      <span class="who" id="who"></span>
+    </div>
+    <nav class="tabs" id="tabs" role="tablist" hidden></nav>
+  </header>
+  <main id="main">
+    <div class="start">
+      <h2>読み込み中です</h2>
+      <p>モルト・酵母の品目を準備しています。</p>
+    </div>
+  </main>
+  <p class="phmeta" id="phMeta"></p>
+</div>
+<div class="bar" id="bar" hidden><div class="in"><span class="msg" id="barMsg"></span><button class="btn" id="barBack" hidden>数える画面に戻る</button><button class="btn primary" id="barBtn">数え終わり → 突合を見る</button></div></div>
+
+<script id="genryo-core">
+/* GENRYO-CORE-BEGIN（原料棚卸カウンター：スマホ版の受付を当てる規則。カウンター・スマホ版・Apps Script・gen/genryo_inbox.js で同じもの） */
+var GC_PLACES = ['room', 'f1', 'f2'];
+var GC_PATH_RE = /^(counts\/[A-Za-z0-9_.~:@+\-]{1,200}|sessions\/\d{4}-(0[1-9]|1[0-2]))$/;
+var GC_MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+function gcStr(v, n) { return v == null ? null : String(v).slice(0, n); }
+function gcNum(v) { if (v == null || v === '') return null; var x = Number(v); return isFinite(x) ? Math.max(0, Math.min(99999, x)) : null; }
+/** 受付の1件をきれいにする。だめなら Error を投げる */
+function gcClean(op) {
+  if (!op || ['set', 'update', 'delete'].indexOf(op.op) < 0) throw new Error('操作の種類が不明です');
+  var path = String(op.path || '');
+  if (!GC_PATH_RE.test(path)) throw new Error('記録の場所が不正です');
+  var o = { op: op.op, path: path, at: gcStr(op.at || new Date().toISOString(), 40), by: gcStr(op.by, 80) };
+  var d = op.data || {};
+  if (path.indexOf('counts/') === 0) {
+    var id = path.slice(7), parts = id.split('__');
+    if (parts.length < 3 || !GC_MONTH_RE.test(parts[0]) || GC_PLACES.indexOf(parts[1]) < 0) throw new Error('記録の場所が不正です');
+    if (op.op === 'update') throw new Error('数の記録は上書きで送ってください');
+    if (op.op === 'set') {
+      var code = String(d.code || '').slice(0, 200);
+      if (!code) throw new Error('品目がありません');
+      o.data = {
+        month: parts[0], place: parts[1], code: code, cat: d.cat === 'yeast' ? 'yeast' : 'malt',
+        name: gcStr(d.name, 120) || code, pack: gcNum(d.pack), temp: !!d.temp,
+        bags: Math.round(gcNum(d.bags) || 0), openKg: gcNum(d.openKg), none: !!d.none,
+        note: gcStr(d.note, 300) || '', addedAt: gcStr(d.addedAt, 40), by: gcStr(d.by || op.by, 80), at: gcStr(d.at || o.at, 40)
+      };
+    }
+  } else {
+    var m = path.slice(9);
+    if (op.op === 'delete') throw new Error('棚卸の月は消せません');
+    if (op.op === 'set') {
+      o.data = { month: m, status: 'open', startedAt: gcStr(d.startedAt || o.at, 40), startedBy: gcStr(d.startedBy || op.by, 80), bookAsOf: gcStr(d.bookAsOf, 20) };
+    } else {
+      o.data = {};
+      if (d.status === 'open' || d.status === 'done') o.data.status = d.status; else throw new Error('状態が不正です');
+      if ('doneAt' in d) o.data.doneAt = gcStr(d.doneAt, 40);
+      if ('doneBy' in d) o.data.doneBy = gcStr(d.doneBy, 80);
+    }
+  }
+  return o;
+}
+function gcSame(a, b) {
+  for (var k in b) { if (k === 'at' || k === 'by') continue; var x = a[k] == null ? null : a[k], y = b[k] == null ? null : b[k]; if (JSON.stringify(x) !== JSON.stringify(y)) return false; }
+  return true;
+}
+/**
+ * cur（今の記録。なければ null）に op を当てる。
+ * 返り値 {st:'ok'|'same'|'old'|'gone'|'bad', w:{kind:'set'|'update'|'delete', data}, msg}
+ *   数の記録は「後で記録したほうが勝ち」（at の新しいほう）。棚卸の開始は先に始めたほうを残す。
+ */
+function gcApply(cur, op0) {
+  var op;
+  try { op = gcClean(op0); } catch (e) { return { st: 'bad', msg: String(e && e.message || e) }; }
+  var counts = op.path.indexOf('counts/') === 0;
+  if (counts) {
+    if (op.op === 'delete') {
+      if (!cur) return { st: 'same', msg: 'もうありません' };
+      if (cur.at && String(cur.at) > String(op.at)) return { st: 'old', msg: 'あとで別の記録あり（そちらを残した）' };
+      return { st: 'ok', w: { kind: 'delete' }, msg: '取り消し' };
+    }
+    if (cur && cur.at && String(cur.at) > String(op.data.at)) return { st: 'old', msg: 'あとで別の記録あり（そちらを残した）' };
+    if (cur && gcSame(cur, op.data)) return { st: 'same', msg: '同じ記録' };
+    return { st: 'ok', w: { kind: 'set', data: op.data }, msg: '記録' };
+  }
+  if (op.op === 'set') {
+    if (cur) return { st: 'same', msg: 'もう始まっています' };
+    return { st: 'ok', w: { kind: 'set', data: op.data }, msg: '棚卸を開始' };
+  }
+  if (!cur) return { st: 'gone', msg: 'まだ始まっていません' };
+  if (gcSame(cur, op.data)) return { st: 'same', msg: '同じ状態' };
+  return { st: 'ok', w: { kind: 'update', data: op.data }, msg: op.data.status === 'done' ? '締め' : '締めを解除' };
+}
+/* GENRYO-CORE-END */
+</script>
+<script>
+
+/* スマホ版（アプリ。GitHub Pages）：claude.use("db"/"user") を写し＋受付シートで置き換える。
+   通信は Apps Script のウェブアプリ（GC_API）への fetch POST（醸造ボードのアプリ版と同じ。合言葉なし）。
+   読む … {fn:"snapshot"}（写し＋受付シートの未処理と3日以内に処理した行）。60秒ごと・画面に戻ったとき・「同期」で読み直す。
+   書く … {fn:"submit",items} で受付シートに1件1行。カウンターに入るのは、PCでカウンターを開いたとき・毎朝9:13の帳簿更新のとき。
+   それまでは、写しの上に受付の記録と送った記録を重ねて表示する（数え終わり→突合もスマホでその場で見られる）。 */
+window.__PHONE=true;
+window.addEventListener("error",e=>{try{const b=document.getElementById("phErr");b.textContent="画面の読み込みでエラー："+(e.message||e);b.hidden=false}catch(_){}});
+(function(){
+const API=window.GC_API||"";
+async function api(fn,arg){
+  if(!API)throw new Error("接続先がまだ設定されていません");
+  let r;try{r=await fetch(API,{method:"POST",credentials:"omit",redirect:"follow",cache:"no-store",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({fn,arg})})}
+  catch(e){throw new Error("電波がないか、接続できません")}
+  let j;try{j=await r.json()}catch(e){throw new Error("HTTP "+r.status)}
+  if(!j||!j.ok)throw new Error(String(j&&j.message||"エラー"));
+  return j.data;
+}
+const LSQ="gcQueue",LSN="gcName";
+let snap=null,inbox={pending:[],recent:[]},local=[],sending=false,busy=false,docs=new Map(),people={};
+let NAME="";try{NAME=localStorage.getItem(LSN)||""}catch(_){}
+try{local=JSON.parse(localStorage.getItem(LSQ)||"[]").map(x=>x.state==="sending"?{...x,state:"queue"}:x)}catch(_){}
+const subs=new Set();
+let readyRes;const ready=new Promise(r=>readyRes=r);let gotSnap=false;
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const hm=s=>{const g=new Date(s);return isNaN(g)?"":`${g.getMonth()+1}/${g.getDate()} ${String(g.getHours()).padStart(2,"0")}:${String(g.getMinutes()).padStart(2,"0")}`};
+function save(){try{localStorage.setItem(LSQ,JSON.stringify(local.slice(-300)))}catch(_){}}
+function rebuild(){
+  const m=new Map();
+  if(snap){if(snap.master)m.set("master/current",snap.master);for(const x of snap.docs||[])m.set(x.p,x.d)}
+  const snapAt=Date.parse(snap&&snap.updatedAt)||0,seen=new Set(),ops=[];
+  for(const r of inbox.recent||[]){seen.add(r.opId);if(r.state==="ok"&&Date.parse(r.at)>snapAt)ops.push(r)}
+  for(const p of inbox.pending||[]){seen.add(p.opId);ops.push(p)}
+  local=local.filter(x=>!(x.state==="sent"&&seen.has(x.opId)));save();
+  for(const x of local)if(!seen.has(x.opId))ops.push(x);
+  for(const x of ops){const p=x.op&&x.op.path;if(!p)continue;const r=gcApply(m.has(p)?m.get(p):null,x.op);if(r.st!=="ok")continue;
+    if(r.w.kind==="delete")m.delete(p);else if(r.w.kind==="set")m.set(p,r.w.data);else m.set(p,{...m.get(p),...r.w.data})}
+  docs=m;for(const s of subs)fire(s);
+}
+function fire(s){
+  if(!gotSnap)return;
+  if(s.kind==="doc")s.cb({exists:docs.has(s.path),data:()=>docs.get(s.path)});
+  else s.cb({docs:[...docs.entries()].filter(([p,d])=>p.startsWith("counts/")&&d&&d.month===s.month).map(([p,d])=>({id:p.slice(7),data:()=>d}))});
+}
+function ref(path){return{
+  onSnapshot(cb){const s={kind:"doc",path,cb};subs.add(s);fire(s);return()=>subs.delete(s)},
+  async get(){return{exists:docs.has(path),data:()=>docs.get(path)}},
+  async set(data){queue({op:"set",path,data})},
+  async update(data){queue({op:"update",path,data})},
+  async delete(){queue({op:"delete",path})}
+}}
+const db={doc:ref,collection:c=>({doc:id=>ref(c+"/"+id),where:(f,o,v)=>({onSnapshot(cb){const s={kind:"q",month:v,cb};subs.add(s);fire(s);return()=>subs.delete(s)}})})};
+const user={
+  async me(){return{id:"phone:"+NAME,name:NAME+"（スマホ）",avatarUrl:""}},
+  async profiles(ids){return Object.fromEntries(ids.map(i=>[i,{name:String(i).startsWith("phone:")?String(i).slice(6)+"（スマホ）":(people[i]||"PCで記録")}]))},
+  async can(){return true},async isOwner(){return false},async canEdit(){return false}
+};
+function queue(op){
+  const o={...op,at:new Date().toISOString(),by:"phone:"+NAME};
+  try{gcClean(o)}catch(e){bar("この記録は送れません："+e.message);return}
+  local.push({opId:uid(),op:o,state:"queue"});save();rebuild();bar();flush();
+}
+function flush(){
+  if(sending)return;
+  const q=local.filter(x=>x.state==="queue").slice(0,20);if(!q.length)return;
+  sending=true;q.forEach(x=>x.state="sending");bar();
+  api("submit",q.map(x=>({opId:x.opId,op:x.op})))
+    .then(()=>{sending=false;q.forEach(x=>x.state="sent");save();bar();if(local.some(x=>x.state==="queue"))flush()})
+    .catch(e=>{sending=false;q.forEach(x=>x.state="queue");save();bar("送れませんでした（"+String(e&&e.message||e).slice(0,60)+"）。電波のよい所で「もう一度送る」を押してください")});
+}
+function load(manual){
+  if(busy)return;busy=true;bar();
+  api("snapshot").then(d=>{busy=false;if(!d||typeof d!=="object"){bar("写しを読み取れませんでした");return}
+      snap=d;inbox=d.inbox||{pending:[],recent:[]};people=d.people||{};const first=!gotSnap;gotSnap=true;rebuild();bar(manual?"最新の状態を読み込みました":"");
+      if(first)maybeReady();if(local.some(x=>x.state==="queue"))flush()})
+    .catch(e=>{busy=false;bar("読み込めませんでした："+String(e&&e.message||e).slice(0,80))});
+}
+let barMsg="",barT=null;
+function bar(msg){
+  if(msg!=null&&msg!==""){barMsg=msg;clearTimeout(barT);barT=setTimeout(()=>{barMsg="";bar()},6000)}
+  const el=document.getElementById("phBar");if(!el)return;
+  const q=local.filter(x=>x.state!=="sent").length,w=local.filter(x=>x.state==="sent").length+(inbox.pending||[]).length;
+  el.innerHTML=`<div class="phrow"><span>アプリ版　<b>${snap?hm(snap.updatedAt)+" の写し":"読み込み中…"}</b>${q?`　<span class="phwarn">送信中・未送信 ${q}件</span>`:""}${w?`　<span class="phwait">PCへの反映待ち ${w}件</span>`:""}</span>
+    <span class="phact">${q&&!sending?`<button type="button" id="phRetry">もう一度送る</button>`:""}<button type="button" id="phSync"${busy?" disabled":""}>${busy?"同期中…":"同期"}</button></span></div>
+    <div class="phrow phsub"><span>記録する人：<b>${esc(NAME||"—")}</b> <button type="button" class="phlink" id="phName">変える</button></span></div>
+    ${barMsg?`<div class="phmsg">${esc(barMsg)}</div>`:""}`;
+  document.getElementById("phSync").onclick=()=>load(true);
+  const r=document.getElementById("phRetry");if(r)r.onclick=()=>flush();
+  document.getElementById("phName").onclick=()=>askName(true);
+}
+function askName(change){
+  const ov=document.getElementById("phName0");
+  const names=[...new Set([...docs.values()].flatMap(d=>[d&&d.by,d&&d.startedBy]).filter(i=>i&&String(i).startsWith("phone:")).map(i=>String(i).slice(6)))].slice(0,8);
+  ov.innerHTML=`<form class="phbox" id="phNameF"><h2>記録する人の名前</h2><p>品目ごとに「誰が数えたか」として残ります。この端末で覚えます。</p>
+    <input id="phNameIn" maxlength="20" value="${esc(NAME)}" placeholder="例：石原" autocomplete="off">
+    ${names.length?`<div class="phchips">${names.map(n=>`<button type="button" class="phchip" data-n="${esc(n)}">${esc(n)}</button>`).join("")}</div>`:""}
+    <div><button type="submit" class="phok">決める</button>${change?`<button type="button" class="phlink" id="phNameX">やめる</button>`:""}</div></form>`;
+  ov.hidden=false;
+  ov.querySelectorAll(".phchip").forEach(b=>b.onclick=()=>{document.getElementById("phNameIn").value=b.dataset.n});
+  const x=document.getElementById("phNameX");if(x)x.onclick=()=>{ov.hidden=true};
+  document.getElementById("phNameF").onsubmit=e=>{e.preventDefault();const v=document.getElementById("phNameIn").value.replace(/[\s:]+/g," ").trim().slice(0,20);if(!v)return;
+    NAME=v;try{localStorage.setItem(LSN,v)}catch(_){}ov.hidden=true;bar();if(change)location.reload();else maybeReady()};
+}
+function maybeReady(){if(!gotSnap)return;if(!NAME){askName(false);return}readyRes()}
+window.claude={use:async k=>{await ready;return k==="db"?db:k==="user"?user:null}};
+function boot(){
+  const b=document.createElement("div");b.id="phBar";b.className="phbar";
+  const e=document.createElement("div");e.id="phErr";e.className="phmsg";e.hidden=true;
+  const o=document.createElement("div");o.id="phName0";o.className="phov";o.hidden=true;
+  const w=document.querySelector(".wrap");w.insertBefore(e,w.firstChild);w.insertBefore(b,w.firstChild);document.body.appendChild(o);
+  bar();load();
+  setInterval(()=>{if(document.activeElement&&document.activeElement.matches("input"))return;load()},60000);
+  document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")load()});
+  window.addEventListener("online",()=>flush());
+}
+if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
+})();
+</script>
+<script>
+(function(){
+
+const PLACES=[
+  {key:"room",name:"モルト",cat:"malt"},
+  {key:"f1",name:"酵母（工場内冷蔵庫）",cat:"yeast"},
+  {key:"f2",name:"酵母（ホシザキ冷蔵庫）",cat:"yeast"},
+];
+const S={db:null,user:null,me:null,master:null,month:null,session:null,counts:{},local:{},place:"room",view:"count",addOpen:false,addQuery:"",profiles:{},memoOpen:new Set(),unsubC:null,unsubS:null,readonly:false};
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt=(n,d=1)=>{if(n==null||isNaN(n))return"—";const r=Math.round(n*10**d)/10**d;return r.toLocaleString("ja-JP",{maximumFractionDigits:d})};
+function hash(s){let h=5381;for(const c of s)h=((h<<5)+h+c.codePointAt(0))>>>0;return h.toString(36)}
+function safe(code){const t=code.replace(/[^A-Za-z0-9_.~:@+-]/g,"_");return t===code?t:t+"~"+hash(code)}
+function cid(place,code){return S.month+"__"+place+"__"+safe(code)}
+function defaultMonth(){const d=new Date();if(d.getDate()<20)d.setMonth(d.getMonth()-1);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")}
+function monthLabel(m){const[y,mo]=m.split("-");return `${y}年${+mo}月末`}
+function shiftMonth(m,k){const[y,mo]=m.split("-").map(Number);const d=new Date(y,mo-1+k,1);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")}
+function who(id){if(!id)return"記録者";if(String(id).startsWith("phone:"))return String(id).slice(6)+"（スマホ）";return S.profiles[id]?.name||"記録者"}
+function hhmm(iso){if(!iso)return"";const d=new Date(iso);return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`}
+
+/* ---- data access ---- */
+function countOf(place,code){const id=cid(place,code);return S.local[id]?.data ?? S.counts[id] ?? null}
+function itemsFor(place){
+  const P=PLACES.find(p=>p.key===place);
+  const out=[];const seen=new Set();
+  for(const it of (S.master?.items||[])){
+    if(it.cat!==P.cat)continue;
+    const home=it.place||PLACES.find(p=>p.cat===it.cat).key;
+    if(it.book>0&&home===place){out.push({...it,temp:false});seen.add(it.code)}
+  }
+  // 帳簿外で足したもの
+  for(const [id,c] of Object.entries({...S.counts,...Object.fromEntries(Object.entries(S.local).map(([k,v])=>[k,v.data]))})){
+    if(!c||c.deleted||c.place!==place||c.month!==S.month||seen.has(c.code))continue;
+    const m=(S.master?.items||[]).find(i=>i.code===c.code);
+    out.push({code:c.code,cat:P.cat,name:c.name||m?.name||c.code,sub:m?.sub||"",pack:c.pack||m?.pack||25,unit:m?.unit||(P.cat==="malt"?"kg":"袋"),book:m?.book||0,temp:!(m&&m.book>0),moved:!!(m&&m.book>0),addedAt:c.addedAt||c.at});
+    seen.add(c.code);
+  }
+  return out;
+}
+function stateOf(c){if(!c||c.deleted)return"todo";if(c.none)return"none";return"done"}
+function qtyOf(c,it){if(!c||c.deleted)return null;if(c.none)return 0;if(it.cat==="malt")return (c.bags||0)*(c.pack||it.pack||25)+(Number(c.openKg)||0);return c.bags||0}
+function progress(place){const items=itemsFor(place);const done=items.filter(it=>stateOf(countOf(place,it.code))!=="todo").length;return{done,total:items.length}}
+
+/* ---- writes: one at a time per doc, coalesced ---- */
+const writers={};
+function queueWrite(id,data){
+  S.local[id]={data,pending:true};
+  const w=writers[id]||(writers[id]={timer:null,busy:false,next:null});
+  w.next=data;clearTimeout(w.timer);
+  w.timer=setTimeout(()=>flush(id),450);
+}
+async function flush(id){
+  const w=writers[id];if(!w||w.busy||!w.next)return;
+  const data=w.next;w.next=null;w.busy=true;
+  try{
+    const ref=S.db.collection("counts").doc(id);
+    if(data.deleted)await ref.delete();else await ref.set(data);
+  }catch(e){
+    if(e?.code==="invalid_argument"){S.readonly=true;toast("この表示では記録できません（閲覧のみの権限です）")}
+    else if(e?.code==="unavailable"){w.next=w.next||data;setTimeout(()=>flush(id),800+Math.random()*600)}
+    else toast("記録できませんでした："+(e?.message||e?.code||"不明なエラー"));
+  }finally{
+    w.busy=false;
+    if(w.next)flush(id);else{ if(S.local[id]&&S.local[id].data===data)S.local[id].pending=false; }
+  }
+}
+function base(place,it){
+  const prev=countOf(place,it.code);
+  return {month:S.month,place,code:it.code,cat:it.cat,name:it.name,pack:it.cat==="malt"?(it.pack||25):null,temp:!!it.temp,
+    bags:prev&&!prev.deleted?prev.bags||0:0,openKg:prev&&!prev.deleted?prev.openKg??null:null,none:false,note:prev?.note||"",
+    addedAt:prev?.addedAt||(it.temp?new Date().toISOString():null),by:S.me?.id||null,at:new Date().toISOString()};
+}
+function setCount(place,it,patch){
+  if(S.readonly)return toast("閲覧のみの権限のため記録できません");
+  const d={...base(place,it),...patch,by:S.me?.id||null,at:new Date().toISOString()};
+  queueWrite(cid(place,it.code),d);render();
+}
+function clearCount(place,it){
+  const id=cid(place,it.code);
+  if(it.temp){queueWrite(id,{deleted:true,month:S.month,place,code:it.code});}
+  else queueWrite(id,{deleted:true,month:S.month,place,code:it.code});
+  render();
+}
+
+/* ---- render ---- */
+let toastT;function toast(m){$("#barMsg").textContent=m;clearTimeout(toastT);toastT=setTimeout(updateBar,4000)}
+function renderTabs(){
+  const t=$("#tabs");
+  if(!S.session||S.view!=="count"){t.hidden=true;return}
+  t.hidden=false;
+  t.innerHTML=PLACES.map(p=>{const pr=progress(p.key);return `<button class="tab ${pr.total&&pr.done===pr.total?"done":""}" role="tab" aria-selected="${p.key===S.place}" data-place="${p.key}"><b>${esc(p.name)}</b><span class="prog">${pr.done} / ${pr.total}</span></button>`}).join("");
+}
+function card(place,it){
+  const c=countOf(place,it.code);const st=stateOf(c);const id=safe(it.code);
+  const pill=st==="todo"?`<span class="pill">未確認</span>`:st==="none"?`<span class="pill none">なし</span>`:`<span class="pill done">記録済み</span>`;
+  const temp=it.temp?`<span class="pill temp">帳簿外・納入を確認</span>`:it.moved?`<span class="pill">ふだんは別の場所</span>`:"";
+  const bags=st==="todo"||st==="none"?"":(c.bags??"");
+  let inputs;
+  if(it.cat==="malt"){
+    const pk=it.pack||25;
+    const ok=st==="todo"||st==="none"?"":(c.openKg??"");
+    inputs=`<div class="row"><span class="lbl">未開封</span>
+      <div class="step"><button data-act="dec" aria-label="未開封を1袋減らす">−</button><input id="b-${place}-${id}" data-act="bags" inputmode="numeric" type="number" min="0" value="${esc(bags)}" placeholder="—" aria-label="未開封の袋数"><button data-act="inc" aria-label="未開封を1袋増やす">＋</button></div>
+      <span class="unit">袋 × ${fmt(pk,2)}kg</span></div>
+      <div class="row"><span class="lbl">開封袋</span><input class="kg" id="k-${place}-${id}" data-act="kg" inputmode="decimal" type="number" min="0" step="0.1" value="${esc(ok)}" placeholder="0" aria-label="開封袋の重さ kg"><span class="unit">kg</span>
+      <span class="total">${st==="todo"?"":"計 "+fmt(qtyOf(c,it),2)+" kg"}</span></div>`;
+  }else{
+    inputs=`<div class="row"><span class="lbl">数</span>
+      <div class="step"><button data-act="dec" aria-label="1つ減らす">−</button><input id="b-${place}-${id}" data-act="bags" inputmode="numeric" type="number" min="0" value="${esc(bags)}" placeholder="—" aria-label="数"><button data-act="inc" aria-label="1つ増やす">＋</button></div>
+      <span class="unit">${esc(it.unit||"袋")}</span></div>`;
+  }
+  const by=c&&!c.deleted&&c.by?`<span>${esc(who(c.by))}・${hhmm(c.at)}</span>`:"";
+  const pend=S.local[cid(place,it.code)]?.pending?`<span>保存中…</span>`:"";
+  const showMemo=it.temp||(c&&!c.deleted&&c.note)||S.memoOpen.has(cid(place,it.code));
+  return `<article class="card st-${st} ${it.temp?"st-temp":""}" data-code="${esc(it.code)}">
+    <div class="head"><div class="nm"><div class="n">${esc(it.name)}</div>${it.sub?`<div class="s">${esc(it.sub)}</div>`:""}<div class="code">${esc(it.code)}</div></div><div style="display:grid;gap:4px;justify-items:end">${pill}${temp}</div></div>
+    ${inputs}
+    ${showMemo?`<input class="memo" id="m-${place}-${id}" data-act="note" value="${esc(c?.note||"")}" placeholder="${it.temp?"メモ（例：10/20ごろ届いた・納品書なし）":"メモ"}">`:""}
+    <div class="foot"><button class="btn small nonebtn" data-act="none" aria-pressed="${st==="none"}">なし</button>${st!=="todo"?`<button class="btn small ghost" data-act="clear">${it.temp?"この品を外す":"取り消す"}</button>`:""}${!showMemo?`<button class="btn small ghost" data-act="memo">メモ</button>`:""}<span class="sp"></span>${pend}${by}</div>
+  </article>`;
+}
+function renderCount(){
+  const P=PLACES.find(p=>p.key===S.place);const items=itemsFor(S.place);
+  const done=S.session?.status==="done";
+  let h="";
+  if(done)h+=`<div class="info" style="margin-top:14px">この月の棚卸は締めてあります。直すと突合に反映されます。</div>`;
+  h+=`<p class="lead">${P.cat==="malt"?"帳簿で在庫がある麦芽だけ並んでいます。袋は未開封を数え、使いかけは重さを量って入れてください。":"帳簿で在庫がある酵母のうち、ふだんこの冷蔵庫に置いているものを並べています。ないものは「なし」を押し、もう一方の冷蔵庫の品がここにあったら「リストにない品を足す」から選んでください。"} 前の月の数は出ません。</p>`;
+  h+=`<section class="list">`;
+  h+=items.length?items.map(it=>card(S.place,it)).join(""):`<div class="empty">帳簿で在庫がある品はありません。<br>棚にあるものは下の「リストにない品を足す」で記録してください。</div>`;
+  h+=addPanel(P);
+  h+=`</section>`;
+  $("#main").innerHTML=h;
+}
+function addPanel(P){
+  if(!S.addOpen)return `<button class="btn" data-act="openadd" style="border-style:dashed">＋ リストにない品を足す（帳簿外）</button>`;
+  const listed=new Set(itemsFor(S.place).map(i=>i.code));
+  const q=S.addQuery.trim().toLowerCase();
+  const cands=(S.master?.items||[]).filter(i=>i.cat===P.cat&&!listed.has(i.code)&&(!q||(i.name+" "+i.code+" "+(i.sub||"")).toLowerCase().includes(q))).slice(0,24);
+  return `<div class="add"><h3>リストにない品を足す</h3>
+    <p class="lead" style="margin:0">帳簿に在庫がないのに棚にあるもの。受け入れの記帳漏れかもしれないので、「帳簿外・納入を確認」として記録します。</p>
+    <input class="memo" id="addq" data-act="addq" value="${esc(S.addQuery)}" placeholder="品名やコードで探す">
+    <div class="cands">${cands.map(i=>`<button class="cand" data-act="pick" data-code="${esc(i.code)}">${esc(i.name)} <span class="code">${esc(i.code)}</span></button>`).join("")||`<span class="unit">候補がありません</span>`}</div>
+    ${q?`<button class="btn" data-act="addnew">「${esc(S.addQuery.trim())}」を新しい品として足す</button>`:""}
+    <div><button class="btn ghost" data-act="closeadd">閉じる</button></div></div>`;
+}
+function reconcile(){
+  const rows={malt:[],yeast:[]};const temps=[];const todos=[];const people=new Set();
+  for(const cat of ["malt","yeast"]){
+    const places=PLACES.filter(p=>p.cat===cat);
+    const codes=new Map();
+    for(const p of places)for(const it of itemsFor(p.key)){if(!codes.has(it.code))codes.set(it.code,{...it,temp:false,anyTemp:false});if(it.temp)codes.get(it.code).anyTemp=true}
+    for(const [code,it] of codes){
+      let qty=0,counted=0,missing=[],notes=[];
+      for(const p of places){
+        const listedHere=itemsFor(p.key).some(i=>i.code===code);if(!listedHere)continue;
+        const c=countOf(p.key,code);
+        if(stateOf(c)==="todo"){missing.push(p.name);continue}
+        counted++;qty+=qtyOf(c,it);if(c.by)people.add(c.by);if(c.note)notes.push(c.note);
+      }
+      const r={...it,qty,missing,notes,book:(S.master.items.find(i=>i.code===code)?.book)||0};
+      if(missing.length)todos.push(r);
+      if(it.anyTemp&&r.book<=0)temps.push(r);else rows[cat].push(r);
+    }
+  }
+  return {rows,temps,todos,people:[...people]};
+}
+function renderRec(){
+  const R=reconcile();
+  const diffs=[...R.rows.malt,...R.rows.yeast].filter(r=>!r.missing.length&&Math.abs(r.qty-r.book)>1e-6);
+  const done=S.session?.status==="done";
+  let h=`<div class="rec">`;
+  h+=`<div class="sumrow"><div class="sum ${R.todos.length?"bad":"good"}"><b>${R.todos.length}</b>未確認</div><div class="sum ${diffs.length?"bad":"good"}"><b>${diffs.length}</b>帳簿と差あり</div><div class="sum tmp"><b>${R.temps.length}</b>帳簿外</div></div>`;
+  h+=`<p class="lead">帳簿：原料受け払い簿（麦芽・酵母）${esc(S.master.asOf.replace(/^\d{4}-0?(\d+)-0?(\d+)$/,"$1/$2"))}時点の残。酵母は2か所の合計です。数えた人：<span id="people"></span></p>`;
+  if(R.todos.length)h+=`<div class="notice">未確認があります：${R.todos.map(t=>esc(t.name)+"（"+t.missing.map(esc).join("・")+"）").join("、")}</div>`;
+  const table=(list,unit)=>`<div class="tblwrap"><table><thead><tr><th>品目</th><th>帳簿</th><th>実数</th><th>差</th></tr></thead><tbody>${list.map(r=>{const d=r.missing.length?null:r.qty-r.book;return `<tr class="${d&&Math.abs(d)>1e-6?"diff":""}"><td>${esc(r.name)}<div class="code">${esc(r.code)}${r.notes.length?"・"+r.notes.map(esc).join(" / "):""}</div></td><td class="num">${fmt(r.book,2)}</td><td class="num">${r.missing.length?"未":fmt(r.qty,2)}</td><td class="num d">${d==null?"—":(d>0?"+":"")+fmt(d,2)}</td></tr>`}).join("")||`<tr><td colspan="4">品目がありません</td></tr>`}</tbody></table></div>`;
+  h+=`<h2>麦芽（kg）</h2>`+table(R.rows.malt);
+  h+=`<h2>酵母（袋・本）</h2>`+table(R.rows.yeast);
+  h+=`<h2>帳簿外（納入の記帳漏れを確認）</h2>`;
+  h+=R.temps.length?`<div class="tblwrap"><table><thead><tr><th>品目</th><th>実数</th><th>足した日</th></tr></thead><tbody>${R.temps.map(r=>`<tr><td>${esc(r.name)}<div class="code">${esc(r.code)}${r.notes.length?"・"+r.notes.map(esc).join(" / "):""}</div></td><td class="num">${r.missing.length?"未":fmt(r.qty,2)}${r.cat==="malt"?" kg":""}</td><td class="num">${hhmm(r.addedAt)}</td></tr>`).join("")}</tbody></table></div>`:`<div class="empty">ありません</div>`;
+  h+=`<div class="row" style="margin-top:18px">${done?`<span class="unit">締めた日時：${hhmm(S.session.doneAt)}</span><button class="btn" data-act="reopen">締めを解除する</button>`:`<button class="btn primary" data-act="close">この月の棚卸を締める</button><span class="unit">締めても直せます</span>`}</div>`;
+  h+=`</div>`;
+  $("#main").innerHTML=h;
+  resolvePeople(R.people);
+}
+async function resolvePeople(ids){
+  const el=$("#people");if(!el)return;
+  if(!ids.length){el.textContent="まだいません";return}
+  const pc=ids.filter(i=>!String(i).startsWith("phone:"));if(S.user&&pc.length)Object.assign(S.profiles,await S.user.profiles(pc));
+  el.textContent=ids.map(who).join("、");
+}
+function renderStart(){
+  const m=S.month;
+  $("#main").innerHTML=`<div class="start">
+    <h2>${monthLabel(m)}の棚卸を始める</h2>
+    <p>始めると、この月の数がまっさらな状態で用意されます。前の月に数えた数は出ません。</p>
+    <label class="row"><span class="lbl">対象の月</span><select class="sel" id="monthSel">${[-1,0,1].map(k=>{const v=shiftMonth(defaultMonth(),k);return `<option value="${v}" ${v===m?"selected":""}>${monthLabel(v)}</option>`}).join("")}</select></label>
+    <p>帳簿は ${esc(S.master?S.master.asOf:"—")} 時点の残高を使います（数え終わるまで見えません）。</p>
+    <div><button class="btn primary" data-act="start" ${S.master?"":"disabled"}>${monthLabel(m)}の棚卸を始める</button></div>
+    ${S.master?"":`<div class="notice">品目リストがまだ用意されていません。Claude に「棚卸カウンターの帳簿を更新」と頼んでください。</div>`}
+  </div>`;
+}
+function updateBar(){
+  const b=$("#bar");
+  if(!S.session){b.hidden=true;return}
+  b.hidden=false;
+  if(S.view==="count"){
+    const t=PLACES.reduce((a,p)=>{const pr=progress(p.key);a.d+=pr.done;a.t+=pr.total;return a},{d:0,t:0});
+    $("#barMsg").textContent=`全体 ${t.d} / ${t.t} を確認`;
+    $("#barBtn").hidden=false;$("#barBack").hidden=true;
+  }else{
+    $("#barMsg").textContent="突合の画面";$("#barBtn").hidden=true;$("#barBack").hidden=false;
+  }
+}
+async function render(){
+  $("#monthChip").textContent=S.month?monthLabel(S.month):"—";
+  const focus=document.activeElement&&document.activeElement.id?{id:document.activeElement.id,s:document.activeElement.selectionStart,e:document.activeElement.selectionEnd}:null;
+  if(!S.db){return}
+  if(!S.session)renderStart();
+  else if(S.view==="rec")renderRec();
+  else renderCount();
+  renderTabs();updateBar();
+  if(focus){const el=document.getElementById(focus.id);if(el){el.focus({preventScroll:true});try{if(focus.s!=null)el.setSelectionRange(focus.s,focus.e)}catch{}}}
+  // 記録者の名前
+  const ids=[...new Set(Object.values(S.counts).map(c=>c.by).filter(Boolean))].filter(i=>!S.profiles[i]&&!String(i).startsWith("phone:"));
+  if(ids.length&&S.user){Object.assign(S.profiles,await S.user.profiles(ids));if(S.view==="count"&&S.session)renderCountSoft()}
+}
+function renderCountSoft(){ if(document.activeElement&&document.activeElement.matches("input"))return; render(); }
+
+/* ---- events ---- */
+function itemFromCard(el){
+  const code=el.closest(".card")?.dataset.code;return itemsFor(S.place).find(i=>i.code===code);
+}
+document.addEventListener("click",async e=>{
+  const t=e.target.closest("[data-act],[data-place]");if(!t)return;
+  if(t.dataset.place){S.place=t.dataset.place;S.addOpen=false;S.addQuery="";render();window.scrollTo({top:0});return}
+  const act=t.dataset.act;
+  if(act==="start")return startSession();
+  if(act==="openadd"){S.addOpen=true;render();setTimeout(()=>$("#addq")?.focus(),0);return}
+  if(act==="closeadd"){S.addOpen=false;S.addQuery="";render();return}
+  if(act==="pick"){const m=S.master.items.find(i=>i.code===t.dataset.code);setCount(S.place,{...m,temp:!(m.book>0)},{bags:0,openKg:null});S.addOpen=false;S.addQuery="";render();return}
+  if(act==="addnew"){const name=S.addQuery.trim();if(!name)return;const P=PLACES.find(p=>p.key===S.place);const code="NEW:"+name;setCount(S.place,{code,cat:P.cat,name,pack:25,temp:true,unit:P.cat==="malt"?"kg":"袋"},{bags:0,openKg:null});S.addOpen=false;S.addQuery="";render();return}
+  if(act==="close"){await S.db.doc("sessions/"+S.month).update({status:"done",doneAt:new Date().toISOString(),doneBy:S.me?.id||null}).catch(err=>toast("締められませんでした："+(err?.code||"")));return}
+  if(act==="reopen"){await S.db.doc("sessions/"+S.month).update({status:"open"}).catch(()=>{});return}
+  const it=itemFromCard(t);if(!it)return;
+  const c=countOf(S.place,it.code);const st=stateOf(c);
+  if(act==="inc"||act==="dec"){
+    const cur=st==="todo"||st==="none"?0:(c.bags||0);
+    const n=Math.max(0,cur+(act==="inc"?1:-1));
+    if(act==="dec"&&st==="todo")return;
+    setCount(S.place,it,{bags:n,none:false,openKg:st==="none"?null:c?.openKg??null});
+  }
+  if(act==="none"){
+    if(st==="none")clearCount(S.place,it);
+    else setCount(S.place,it,{bags:0,openKg:null,none:true});
+  }
+  if(act==="clear")clearCount(S.place,it);
+  if(act==="memo"){S.memoOpen.add(cid(S.place,it.code));render();setTimeout(()=>document.getElementById("m-"+S.place+"-"+safe(it.code))?.focus(),0)}
+});
+document.addEventListener("input",e=>{
+  const t=e.target;const act=t.dataset?.act;if(!act)return;
+  if(act==="addq"){S.addQuery=t.value;const pos=t.selectionStart;render();const el=$("#addq");if(el){el.focus();el.setSelectionRange(pos,pos)}return}
+  const it=itemFromCard(t);if(!it)return;
+  const c=countOf(S.place,it.code);
+  if(act==="bags"){if(t.value===""){ if(stateOf(c)!=="todo"&&!(c.openKg>0))clearCount(S.place,it); return;} setCount(S.place,it,{bags:Math.max(0,parseInt(t.value,10)||0),none:false})}
+  if(act==="kg"){const v=t.value===""?null:Math.max(0,parseFloat(t.value)||0);setCount(S.place,it,{openKg:v,none:false,bags:stateOf(c)==="todo"||stateOf(c)==="none"?0:(c.bags||0)})}
+  if(act==="note"){if(stateOf(c)==="todo"&&!it.temp){S.memoNote=t.value;return}setCount(S.place,it,{note:t.value})}
+});
+document.addEventListener("change",e=>{if(e.target.id==="monthSel"){S.month=e.target.value;subscribeMonth()}});
+$("#barBtn").addEventListener("click",()=>{S.view="rec";render();window.scrollTo({top:0})});
+$("#barBack").addEventListener("click",()=>{S.view="count";render();window.scrollTo({top:0})});
+
+async function startSession(){
+  try{
+    await S.db.doc("sessions/"+S.month).set({month:S.month,status:"open",startedAt:new Date().toISOString(),startedBy:S.me?.id||null,bookAsOf:S.master?.asOf||null});
+  }catch(e){toast(e?.code==="invalid_argument"?"閲覧のみの権限のため始められません":"始められませんでした："+(e?.code||""))}
+}
+function subscribeMonth(){
+  S.unsubC&&S.unsubC();S.unsubS&&S.unsubS();
+  S.counts={};S.local={};S.session=null;S.view="count";S.addOpen=false;
+  render();
+  S.unsubS=S.db.doc("sessions/"+S.month).onSnapshot(s=>{S.session=s.exists?s.data():null;render();phSoon()},err=>toast("読み込みが止まりました。開き直してください"));
+  S.unsubC=S.db.collection("counts").where("month","==",S.month).onSnapshot(snap=>{
+    const m={};snap.docs.forEach(d=>{m[d.id]=d.data()});S.counts=m;
+    for(const [id,l] of Object.entries(S.local)){if(!l.pending)delete S.local[id]}
+    renderCountSoft();phSoon();
+  },err=>toast("読み込みが止まりました。開き直してください"));
+}
+
+/* ---- PH-SYNC-BEGIN スマホ版（Apps Script・合言葉なし）との連携（2026-10-27） ----
+   スプレッドシート「原料棚卸カウンター（スマホ用）」（下の ID）：
+     data シート … このカウンターの写し。1行目 [時刻, page/auto]、2行目 [v1]、3行目〜 [種類, ~JSON]
+                    master（40,000文字ずつ）／people（記録者 id → 名前）／doc（{p:パス, d:中身}。sessions と counts を1件1行）
+     （スマホ版の画面は GitHub Pages のアプリ版 https://narabrewing2018.github.io/brew-board/genryo/ 。page シートは使わない）
+     受付シート  … スマホ版の記録（1件1行。A 受付時刻｜B 受付ID｜C 操作｜D パス｜E ~JSON｜F 状態｜G 処理時刻｜H 結果）
+   開いたとき（とタブに戻ったとき。1分に1回まで）に受付の未処理の行を当てて F〜H を書き、写しを書き直す。
+   毎朝 9:13 の帳簿更新（定期タスク）でも gen/genryo_inbox.js で同じことをする。 */
+const PH_SHEET='1slKo3S9_kSNc5GMF0vKkws_lT5p-UjkfhFDF3X-yrow';
+const PH_URL='https://narabrewing2018.github.io/brew-board/genryo/';   // スマホ版（アプリ版）
+const PH_CELL=40000;
+let mcpNs, phBusy=false, phAgain=false, phTimer=null, phLastKey=null, phOff=false, phPageSent=false, phPullAt=0, phMsg="";
+async function phMcp(){if(mcpNs===undefined){try{mcpNs=await window.claude?.use?.("mcp")}catch(_){mcpNs=null}}return mcpNs}
+function phVals(r){let p=r&&r.payload;if(typeof p==="string"){try{p=JSON.parse(p)}catch(_){p=null}}if(!p||typeof p!=="object")throw new Error("読めませんでした");return p.values||[]}
+function phJst(){return new Date(Date.now()+9*36e5).toISOString().slice(0,19)+"+09:00"}
+function phShow(){const el=$("#phMeta");if(!el)return;el.innerHTML=phMsg+(PH_URL?`　<a href="${PH_URL}" target="_blank" rel="noopener">スマホ版（アプリ）を開く</a>`:"")}
+const PH_DENY=["not_granted","not_in_manifest","blocked_by_policy","consent_required","approval_required","server_not_connected","server_not_found","selection_required","needs_reauth","capability_disabled","capability_removed"];
+async function phPull(force){
+  if(window.__PHONE||!S.db||S.readonly||phOff)return;
+  if(!force&&Date.now()-phPullAt<60e3)return;
+  phPullAt=Date.now();
+  try{
+    const m=await phMcp();if(!m){phOff=true;phMsg="スマホ版の記録は、この画面からは取り込めません（毎朝の帳簿更新で取り込みます）";phShow();return}
+    const rows=phVals(await m.callTool("Google Sheets","get_values",{spreadsheetId:PH_SHEET,range:"受付!A2:H5000"}));
+    const items=[];rows.forEach((r,i)=>{if(r[5])return;let s=String(r[4]||"");if(s[0]==="~")s=s.slice(1);let op=null;try{op=JSON.parse(s)}catch(_){}items.push({row:i+2,op})});
+    if(items.length){
+      const now=phJst(),marks=[],cache=new Map();let n=0,old=0;
+      for(const it of items){
+        if(!it.op){marks.push([it.row,["bad",now,"内容を読めません／カウンター"]]);continue}
+        const path=String(it.op.path||"");let cur=null;
+        try{
+          if(cache.has(path))cur=cache.get(path);else{const s=await S.db.doc(path).get();cur=s.exists?s.data():null}
+        }catch(_){cur=undefined}
+        if(cur===undefined){marks.push([it.row,["bad",now,"記録の場所が不正です／カウンター"]]);continue}
+        const res=gcApply(cur,it.op);
+        if(res.st==="ok"){
+          const ref=S.db.doc(path);
+          try{
+            if(res.w.kind==="set"){await ref.set(res.w.data);cache.set(path,res.w.data)}
+            else if(res.w.kind==="delete"){await ref.delete();cache.set(path,null)}
+            else{await ref.update(res.w.data);cache.set(path,{...cur,...res.w.data})}
+            n++;
+          }catch(_){break}
+        }else if(res.st==="old")old++;
+        marks.push([it.row,[res.st,now,`${res.msg||""}／カウンター`]]);
+      }
+      // 続いている行ごとにまとめて F〜H を書く
+      marks.sort((a,b)=>a[0]-b[0]);
+      for(let i=0;i<marks.length;){let j=i;while(j+1<marks.length&&marks[j+1][0]===marks[j][0]+1)j++;
+        await m.callTool("Google Sheets","update_values",{spreadsheetId:PH_SHEET,range:`受付!F${marks[i][0]}:H${marks[j][0]}`,values:marks.slice(i,j+1).map(x=>x[1])});i=j+1}
+      if(n||old)toast(`スマホ版の記録を${n}件取り込みました${old?`（${old}件はこちらの記録のほうが新しいので残しました）`:""}`);
+    }
+    phSoon(0);
+  }catch(err){if(PH_DENY.includes(err&&err.code)){phOff=true;phMsg="スマホ版と連携できません（Google Sheets の許可がありません）。毎朝の帳簿更新では連携します";phShow()}}
+}
+function phSoon(ms){if(window.__PHONE||phOff)return;clearTimeout(phTimer);phTimer=setTimeout(phMirror,ms==null?4000:ms)}
+function phMonths(){const d=defaultMonth();return [...new Set([shiftMonth(d,-1),d,shiftMonth(d,1),S.month].filter(Boolean))]}
+async function phRows(){
+  const rows=[];const ms=phMonths();
+  if(S.master){const s=JSON.stringify(S.master);for(let i=0;i<s.length;i+=PH_CELL)rows.push(["master","~"+s.slice(i,i+PH_CELL)])}
+  let docs=[];
+  try{const q=await S.db.collection("counts").where("month","in",ms).get();docs=q.docs.map(d=>({p:"counts/"+d.id,d:d.data()}))}
+  catch(_){const q=await S.db.collection("counts").get();docs=q.docs.filter(d=>ms.includes(d.data().month)).map(d=>({p:"counts/"+d.id,d:d.data()}))}
+  for(const m of ms){try{const s=await S.db.doc("sessions/"+m).get();if(s.exists)docs.unshift({p:"sessions/"+m,d:s.data()})}catch(_){}}
+  const ids=[...new Set(docs.flatMap(x=>[x.d.by,x.d.startedBy,x.d.doneBy]).filter(i=>i&&!String(i).startsWith("phone:")))];
+  if(ids.length&&S.user){try{Object.assign(S.profiles,await S.user.profiles(ids))}catch(_){}}
+  rows.push(["people","~"+JSON.stringify(Object.fromEntries(ids.map(i=>[i,S.profiles[i]?.name||""])))]);
+  for(const x of docs)rows.push(["doc","~"+JSON.stringify(x)]);
+  return rows;
+}
+async function phGz64(str){
+  const cs=new Blob([str]).stream().pipeThrough(new CompressionStream("gzip"));
+  const buf=new Uint8Array(await new Response(cs).arrayBuffer());let bin="";
+  for(let i=0;i<buf.length;i+=0x8000)bin+=String.fromCharCode.apply(null,buf.subarray(i,i+0x8000));
+  return btoa(bin);
+}
+async function phSendPage(m){
+  if(phPageSent||!window.CompressionStream)return;phPageSent=true;
+  try{const r=await fetch("phone.html",{cache:"no-store"});if(!r.ok)return;const b=await phGz64(await r.text());if(b.length>PH_CELL*20)return;
+    const values=Array.from({length:20},(_,i)=>[b.slice(i*PH_CELL,(i+1)*PH_CELL),i===0?phJst():(i===1?`${b.length}文字・${Math.ceil(b.length/PH_CELL)}セル`:"")]);
+    await m.callTool("Google Sheets","update_values",{spreadsheetId:PH_SHEET,range:"page!A1:B20",values});
+  }catch(_){}
+}
+async function phMirror(){
+  if(window.__PHONE||phOff||!S.db||!S.master)return;
+  if(phBusy){phAgain=true;return}
+  phBusy=true;
+  try{
+    const m=await phMcp();if(!m){phOff=true;phMsg="スマホ版の写しは、この画面からは更新できません（毎朝の帳簿更新で更新します）";phShow();return}
+    const rows=await phRows(),key=JSON.stringify(rows);
+    if(key!==phLastKey){
+      if(rows.length>398){phMsg="写しが大きすぎて更新できませんでした";phShow();return}
+      const values=[[phJst(),"page"],["v1",""],...rows,...Array(398-rows.length).fill(["",""])];
+      await m.callTool("Google Sheets","update_values",{spreadsheetId:PH_SHEET,range:"data!A1:B400",values});
+      phLastKey=key;const d=new Date();phMsg=`スマホ版の写し：${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")} 更新`;phShow();
+    }
+  }catch(err){
+    if(PH_DENY.includes(err&&err.code)){phOff=true;phMsg="スマホ版と連携できません（Google Sheets の許可がありません）。毎朝の帳簿更新では連携します"}
+    else phMsg="スマホ版の写しの更新に失敗しました。次の変更のときにもう一度書き込みます";
+    phShow();
+  }finally{phBusy=false;if(phAgain){phAgain=false;phSoon()}}
+}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")phPull()});
+/* ---- PH-SYNC-END ---- */
+
+(async()=>{
+  S.month=defaultMonth();
+  $("#monthChip").textContent=monthLabel(S.month);
+  const [db,user]=await Promise.all([claude.use("db"),claude.use("user")]);
+  S.db=db;S.user=user;
+  if(!db){$("#main").innerHTML=`<div class="start"><h2>この画面では記録できません</h2><p>Claude にサインインした状態で開いてください。</p></div>`;return}
+  if(user){S.me=await user.me();if(S.me.id)S.profiles[S.me.id]={name:S.me.name};$("#who").innerHTML=`${S.me.avatarUrl?`<img alt="" src="${esc(S.me.avatarUrl)}">`:""}<span>${esc(S.me.name||"あなた")}</span>`;
+    const w=await user.can("data.write");if(w===false)S.readonly=true;}
+  let phFirst=false;db.doc("master/current").onSnapshot(s=>{S.master=s.exists?s.data():null;render();if(!window.__PHONE){if(!phFirst){phFirst=true;phPull(true)}else phSoon()}});
+  subscribeMonth();
+})();
+
+})();
+</script>
+
+<div class="phupd" id="phUpd" hidden>新しいバージョンがあります。タップして更新</div>
+<script>
+/* アプリ版：電波がなくても画面が開くように（sw.js）、新しい版が出たら知らせる（version.json） */
+(function(){
+  let shown=false;const b=document.getElementById('phUpd');
+  async function check(){if(shown||!navigator.onLine)return;try{const r=await fetch('version.json?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const j=await r.json();if(j&&j.v&&j.v!==window.GC_VERSION){shown=true;b.hidden=false}}catch(e){}}
+  b.onclick=async()=>{b.textContent='更新中…';try{const g=await navigator.serviceWorker?.getRegistration();if(g)await g.update()}catch(e){}location.reload()};
+  setInterval(check,5*60*1000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)check()});setTimeout(check,5000);
+  if('serviceWorker' in navigator)window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})});
+})();
+</script>
+</body></html>
