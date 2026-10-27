@@ -35,6 +35,8 @@ rep('</style>\n<link rel="stylesheet" href="https://fonts.googleapis.com','''
 .lock input{font:inherit;font-size:18px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)}
 .lock .err{color:var(--today);font-weight:700}
 .lock .btn{font-size:16px;padding:12px}
+.lock .forgot{background:none;border:0;color:var(--muted);font:inherit;font-size:14px;text-decoration:underline;padding:8px 0;cursor:pointer;align-self:flex-start}
+.lock .info{color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px}
 .install{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:12px 0 0;font-size:13px;color:var(--muted)}
 .install b{color:var(--ink)}
 .install .sp{margin-left:auto;display:flex;gap:8px}
@@ -50,6 +52,8 @@ rep('<div class="wrap">\n  <header class="top">','''<div class="lock" id="lock" 
     <input id="lockInput" type="password" inputmode="text" autocomplete="current-password" aria-label="合言葉" required>
     <p class="err" id="lockErr" hidden>合言葉が違います</p>
     <button class="btn primary" id="lockBtn" type="submit">開く</button>
+    <button class="forgot" id="forgotBtn" type="button">合言葉を忘れたとき</button>
+    <p class="info" id="forgotMsg" hidden></p>
   </form>
 </div>
 <button class="update" id="updateBar" type="button" hidden>新しいバージョンがあります（タップで更新）</button>
@@ -83,7 +87,16 @@ $('#lockForm').addEventListener('submit',async ev=>{ev.preventDefault();const v=
     if(j&&j.ok){setKey(v);$('#lock').hidden=true;refresh(true);}
     else{$('#lockErr').textContent='合言葉が違います';$('#lockErr').hidden=false;$('#lockInput').select();}}
   catch(e){$('#lockErr').textContent='接続できません。電波を確認してください';$('#lockErr').hidden=false;}
-  finally{b.disabled=false;b.textContent='開く';}});''' % api_url)
+  finally{b.disabled=false;b.textContent='開く';}});
+$('#forgotBtn').addEventListener('click',async()=>{const b=$('#forgotBtn'),m=$('#forgotMsg');
+  if(!confirmForgot){confirmForgot=true;b.textContent='管理者に合言葉をメールで送る（もう一度タップ）';setTimeout(()=>{confirmForgot=false;if(!b.disabled)b.textContent='合言葉を忘れたとき';},6000);return;}
+  confirmForgot=false;b.disabled=true;b.textContent='送信中…';
+  try{const r=await fetch(API_URL,{method:'POST',credentials:'omit',redirect:'follow',cache:'no-store',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({fn:'forgot'})});
+    const j=await r.json();if(!j||!j.ok)throw 0;
+    m.textContent=j.sent?'管理者（会社のGmail）に合言葉をメールで送りました。管理者に確認してください。':j.recent?'1時間以内に送信済みです。管理者（会社のGmail）のメールを確認してください。':'合言葉が未設定です。管理者に連絡してください。';}
+  catch(e){m.textContent='送信できませんでした。電波を確認するか、管理者に直接確認してください。';}
+  m.hidden=false;b.disabled=false;b.textContent='合言葉を忘れたとき';});
+let confirmForgot=false;''' % api_url)
 
 rep("function writeErr(e){toast(e&&e.code==='offline'?",
     "function writeErr(e){if(e&&e.code==='auth')return;toast(e&&e.code==='offline'?")
